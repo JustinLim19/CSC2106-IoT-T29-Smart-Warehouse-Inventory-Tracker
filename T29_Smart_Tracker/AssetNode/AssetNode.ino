@@ -20,6 +20,28 @@ const uint8_t notificationOff[] = {0x0, 0x0};
 char* positionStr;
 boolean newPosition = false;
 
+// Known positions (coordinates) of corner nodes
+double xCornerNode1 = 0.0;
+double yCornerNode1 = 0.0;
+double xCornerNode2 = 5.0; // Example coordinates (adjust as per your setup)
+double yCornerNode2 = 0.0;
+double xCornerNode3 = 0.0;
+double yCornerNode3 = 5.0;
+
+// Variables to store RSSI values from corner nodes
+int rssiCornerNode1 = 0;
+int rssiCornerNode2 = 0;
+int rssiCornerNode3 = 0;
+
+// Variables to store distances from corner nodes to asset node
+double distanceCornerNode1 = 0.0;
+double distanceCornerNode2 = 0.0;
+double distanceCornerNode3 = 0.0;
+
+// Variables to store estimated position of asset node
+double xAssetNode = 0.0;
+double yAssetNode = 0.0;
+
 int cornerNodeRSSI = 0; // Variable to store corner node RSSI
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
@@ -38,6 +60,40 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
 static void positionNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
   positionStr = (char*)pData;
   newPosition = true;
+}
+
+double rssiToDistance(int rssi) {
+    // Implement path loss model here
+    // Example: distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
+    // You'll need to adjust the constants A and n based on your environment and hardware characteristics
+    // This is just a placeholder, you should replace it with a proper path loss model
+    double A = 50; // Example constant
+    double n = 2.0; // Example constant
+    return pow(10, (A - rssi) / (10 * n));
+}
+
+void performTrilateration() {
+    // Calculate distances from RSSI values using path loss model
+    distanceCornerNode1 = rssiToDistance(rssiCornerNode1);
+    distanceCornerNode2 = rssiToDistance(rssiCornerNode2);
+    distanceCornerNode3 = rssiToDistance(rssiCornerNode3);
+
+    // Trilateration algorithm
+    // Solve equations based on distances and known positions of corner nodes
+    // to estimate the coordinates of the asset node
+    // Example algorithm:
+    // Calculate intermediate values for trilateration equations
+    double A = 2 * (xCornerNode2 - xCornerNode1);
+    double B = 2 * (yCornerNode2 - yCornerNode1);
+    double C = 2 * (xCornerNode3 - xCornerNode1);
+    double D = 2 * (yCornerNode3 - yCornerNode1);
+
+    double E = pow(distanceCornerNode1, 2) - pow(distanceCornerNode2, 2) - pow(xCornerNode1, 2) + pow(xCornerNode2, 2) - pow(yCornerNode1, 2) + pow(yCornerNode2, 2);
+    double F = pow(distanceCornerNode1, 2) - pow(distanceCornerNode3, 2) - pow(xCornerNode1, 2) + pow(xCornerNode3, 2) - pow(yCornerNode1, 2) + pow(yCornerNode3, 2);
+
+    // Calculate asset node's coordinates
+    xAssetNode = (E - F * B / D) / (A - C * B / D);
+    yAssetNode = (E - A * xAssetNode) / B;
 }
 
 void setup() {

@@ -30,7 +30,7 @@ void setup() {
   M5.Lcd.setRotation(3);
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setCursor(0, 0, 2);
-  M5.Lcd.printf("BLE Server", 0);
+  M5.Lcd.printf("Corner Node", 0);
 
   BLEDevice::init(bleServerName);
 

@@ -12,11 +12,15 @@ static boolean connected = false;
 static BLEAddress *pServerAddress;
 static BLERemoteCharacteristic* positionCharacteristic;
 
+static BLEClient* pClient;
+
 const uint8_t notificationOn[] = {0x1, 0x0};
 const uint8_t notificationOff[] = {0x0, 0x0};
 
 char* positionStr;
 boolean newPosition = false;
+
+int cornerNodeRSSI = 0; // Variable to store corner node RSSI
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
@@ -42,7 +46,7 @@ void setup() {
   M5.Lcd.setRotation(3);
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setCursor(0, 0, 2);
-  M5.Lcd.printf("BLE Client", 0);
+  M5.Lcd.printf("Asset Node", 0);
 
   BLEDevice::init("");
  
@@ -56,10 +60,15 @@ void printReadings() {
   M5.Lcd.setCursor(0, 20, 2);
   M5.Lcd.print("Position = ");
   M5.Lcd.print(positionStr);
+
+  // Print corner node RSSI
+  M5.Lcd.setCursor(0, 40, 2);
+  M5.Lcd.print("Corner Node RSSI = ");
+  M5.Lcd.print(cornerNodeRSSI);
 }
 
 bool connectToServer(BLEAddress pAddress) {
-  BLEClient* pClient = BLEDevice::createClient();
+  pClient = BLEDevice::createClient();
  
   pClient->connect(pAddress);
   Serial.println(" - Connected to server");
@@ -84,10 +93,9 @@ bool connectToServer(BLEAddress pAddress) {
 }
 
 void loop() {
-  if (doConnect == true) {
+  if (doConnect == true && !connected) {
     if (connectToServer(*pServerAddress)) {
       Serial.println("Connected to the BLE Server.");
-      
       // Activate the Notify property of each Characteristic
       positionCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
       connected = true;
@@ -97,11 +105,12 @@ void loop() {
     doConnect = false;
   }
 
-  // Check if new temperature readings are available
+  // Check if new position data is available
   if (newPosition) {
-    newPosition = false;
-    printReadings();
+      newPosition = false;
+      cornerNodeRSSI = pClient->getRssi();
+      printReadings();
   }
-
+    
   delay(1000);  // Delay one second between loops.
 }

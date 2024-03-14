@@ -3,7 +3,7 @@
 #include <M5StickCPlus.h>
 
 #define SERVICE_UUID "01234567-0123-4567-89ab-0123456789ab"
-#define bleServerName "AssetTrackingSystem"
+#define bleServerName "CornerNode3"
 
 BLECharacteristic positionCharacteristics("01234567-0123-4567-89ab-0123456789cd", BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 BLEDescriptor positionDescriptor(BLEUUID((uint16_t)0x2902));
@@ -30,7 +30,7 @@ void setup() {
   M5.Lcd.setRotation(3);
   M5.Lcd.fillScreen(BLACK);
   M5.Lcd.setCursor(0, 0, 2);
-  M5.Lcd.printf("Corner Node", 0);
+  M5.Lcd.printf(bleServerName, 0);
 
   BLEDevice::init(bleServerName);
 

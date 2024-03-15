@@ -33,19 +33,12 @@ double yCornerNode2 = 0.0;
 double xCornerNode3 = 0.0;
 double yCornerNode3 = 5.0;
 
-// Array to store RSSI values from corner nodes
-int cornerNodeRssiArr[MAX_NODES] = {0,0,0};
-
-// Variables to store distances from corner nodes to asset node
-double distanceCornerNode1 = 0.0;
-double distanceCornerNode2 = 0.0;
-double distanceCornerNode3 = 0.0;
+int cornerNodeRssiArr[MAX_NODES] = { 0, 0, 0 }; // RSSI values from corner nodes
+double distancesCornerNodes[MAX_NODES] = { 0.0, 0.0, 0.0 }; // Distances from corner nodes to asset node
 
 // Variables to store estimated node of asset node
 double xAssetNode = 0.0;
 double yAssetNode = 0.0;
-
-int currNodeIndex = 0;
 
 std::string cornerNodes[] = {
   "CornerNode1",
@@ -58,22 +51,7 @@ bool gotAllRssi = false;
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
-    // if (currNodeIndex == 3) {
-    //   for (int i = 0; i < 2; i++) {
-    //     Serial.print("Address @ "); Serial.println(pServerAddresses[currNodeIndex]->toString().c_str());
-    //   }
-    //   doConnect = true;
-    // }
-    // if (advertisedDevice.getName() == cornerNodes[currNodeIndex]) {
-    //   advertisedDevice.getScan();
-    //   pServerAddresses[currNodeIndex] = new BLEAddress(advertisedDevice.getAddress());
-    //   currNodeIndex++;
-    // }
-
-    // if (advertisedDevice.haveServiceUUID() && 
-    //   advertisedDevice.isAdvertisingService(serviceUUID)) {
-    //   cornerNodeDevices[CountDevice] = new BLEAdvertisedDevice(advertisedDevice);
-    // }
+    // Nothing here for now
   }
 };
 
@@ -81,10 +59,8 @@ class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient* pclient) {
     connected = true;
     Serial.print("Connected to ");
-    Serial.print(cornerNodes[currNodeIndex].c_str());
+    Serial.print(pClient->getConnId());
     Serial.println();
-    if (currNodeIndex == 2) currNodeIndex = 0;
-    else currNodeIndex++;
   }
 
   void onDisconnect(BLEClient* pclient) {
@@ -94,46 +70,50 @@ class MyClientCallback : public BLEClientCallbacks {
   }
 };
 
-// double rssiToDistance(int rssi) {
-//     // Implement path loss model here
-//     // Example: distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
-//     // You'll need to adjust the constants A and n based on your environment and hardware characteristics
-//     // This is just a placeholder, you should replace it with a proper path loss model
-//     double A = 50; // Example constant
-//     double n = 2.0; // Example constant
-//     return pow(10, (A - rssi) / (10 * n));
-// }
+double rssiToDistance(int rssi) {
+    // Implement path loss model here
+    // Example: distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
+    // You'll need to adjust the constants A and n based on your environment and hardware characteristics
+    // This is just a placeholder, you should replace it with a proper path loss model
+    double A = 50; // Example constant
+    double n = 2.0; // Example constant
+    return pow(10, (A - rssi) / (10 * n));
+}
 
-// void performTrilateration() {
-//     // Calculate distances from RSSI values using path loss model
-//     distanceCornerNode1 = rssiToDistance(rssiCornerNode1);
-//     distanceCornerNode2 = rssiToDistance(rssiCornerNode2);
-//     distanceCornerNode3 = rssiToDistance(rssiCornerNode3);
+void performTrilateration() {
+    // Calculate distances from RSSI values using path loss model
+    for (int i = 0; i < MAX_NODES; i++) {
+      distancesCornerNodes[i] = rssiToDistance(cornerNodeRssiArr[i]);
+    }
 
-//     // Trilateration algorithm
-//     // Solve equations based on distances and known nodes of corner nodes
-//     // to estimate the coordinates of the asset node
-//     // Example algorithm:
-//     // Calculate intermediate values for trilateration equations
-//     double A = 2 * (xCornerNode2 - xCornerNode1);
-//     double B = 2 * (yCornerNode2 - yCornerNode1);
-//     double C = 2 * (xCornerNode3 - xCornerNode1);
-//     double D = 2 * (yCornerNode3 - yCornerNode1);
+    // Trilateration algorithm
+    // Solve equations based on distances and known nodes of corner nodes
+    // to estimate the coordinates of the asset node
+    // Example algorithm:
+    // Calculate intermediate values for trilateration equations
+    double A = 2 * (xCornerNode2 - xCornerNode1);
+    double B = 2 * (yCornerNode2 - yCornerNode1);
+    double C = 2 * (xCornerNode3 - xCornerNode1);
+    double D = 2 * (yCornerNode3 - yCornerNode1);
 
-//     double E = pow(distanceCornerNode1, 2) - pow(distanceCornerNode2, 2) - pow(xCornerNode1, 2) + pow(xCornerNode2, 2) - pow(yCornerNode1, 2) + pow(yCornerNode2, 2);
-//     double F = pow(distanceCornerNode1, 2) - pow(distanceCornerNode3, 2) - pow(xCornerNode1, 2) + pow(xCornerNode3, 2) - pow(yCornerNode1, 2) + pow(yCornerNode3, 2);
+    double E = pow(distancesCornerNodes[0], 2) - pow(distancesCornerNodes[1], 2) - pow(xCornerNode1, 2) + pow(xCornerNode2, 2) - pow(yCornerNode1, 2) + pow(yCornerNode2, 2);
+    double F = pow(distancesCornerNodes[1], 2) - pow(distancesCornerNodes[3], 2) - pow(xCornerNode1, 2) + pow(xCornerNode3, 2) - pow(yCornerNode1, 2) + pow(yCornerNode3, 2);
 
-//     // Calculate asset node's coordinates
-//     xAssetNode = (E - F * B / D) / (A - C * B / D);
-//     yAssetNode = (E - A * xAssetNode) / B;
-// }
+    // Calculate asset node's coordinates
+    xAssetNode = (E - F * B / D) / (A - C * B / D);
+    yAssetNode = (E - A * xAssetNode) / B;
+}
 
 bool getNodeAddresses(BLEScan* pBLEScan) {
   Serial.println("Searching for corner nodes...");
+
+  // Will keep scanning until all corner nodes found
   while (cornerNodesDiscovered < MAX_NODES) {
-    BLEScanResults foundDevices = pBLEScan->start(5, false); // 5,false
+    BLEScanResults foundDevices = pBLEScan->start(5, false);
+
     for (int i = 0; i < foundDevices.getCount(); i++) {
       BLEAdvertisedDevice res = foundDevices.getDevice(i);
+      // Check if found device is our corner node
       if (res.getName() == cornerNodes[cornerNodesDiscovered]) {
         cornerNodeRssiArr[cornerNodesDiscovered] = res.getRSSI();
         pServerAddresses[cornerNodesDiscovered] = new BLEAddress(res.getAddress());
@@ -141,6 +121,7 @@ bool getNodeAddresses(BLEScan* pBLEScan) {
       }
     }
   }
+
   gotAllRssi = true;
   cornerNodesDiscovered = 0;
   Serial.println("Found all corner nodes!");
@@ -170,17 +151,16 @@ void setup() {
   pBLEScan->setActiveScan(true);
 
   if (getNodeAddresses(pBLEScan)) {
-    currNodeIndex = 0;
     doConnect = true;
   }
 }
 
 void printReadings() {
-  // M5.Lcd.setCursor(0, 20, 2);
-  // M5.Lcd.print("Node = ");
-  // M5.Lcd.print(nodeStr);
+  M5.Lcd.setCursor(0, 20, 2);
+  M5.Lcd.printf("Asset Location = ( %f, %f )", xAssetNode, yAssetNode);
+  M5.Lcd.println();
 
-  // Print corner node RSSI
+  // Print each corner node RSSI
   M5.Lcd.setCursor(0, 40, 2);
   for (int i = 0; i < MAX_NODES; i++) {
     M5.Lcd.print("Corner Node ");
@@ -219,6 +199,7 @@ bool connectToServer(BLEAddress pAddress, int index) {
 
 void loop() {
   if (doConnect) {
+    // Connect to each corner node found
     for (int i = 0; i < MAX_NODES; i++) {
       if (connectToServer(*pServerAddresses[i], i)) {
         Serial.print("Connected to the BLE Server: "); Serial.println(pServerAddresses[i]->toString().c_str());
@@ -234,10 +215,14 @@ void loop() {
   else {
     if (connected) {
       if (gotAllRssi) {
+        performTrilateration();
         printReadings();
         gotAllRssi = false;
       } 
       else {
+        // After getting RSSI and performing trilateration once,
+        // disconnet all currently connected nodes and connect again
+        // so RSSI can be obtained again
         for (int i = 0; i < MAX_NODES; i++) {
           pNodes[i]->disconnect();
           Serial.print("Disonnected to the BLE Server: "); Serial.println(pServerAddresses[i]->toString().c_str());
@@ -253,7 +238,6 @@ void loop() {
       pBLEScan->setActiveScan(true);
 
       if (getNodeAddresses(pBLEScan)) {
-        currNodeIndex = 0;
         doConnect = true;
       }
     }

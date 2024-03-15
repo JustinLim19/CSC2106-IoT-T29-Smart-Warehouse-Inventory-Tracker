@@ -3,7 +3,10 @@
 #include <M5StickCPlus.h>
 
 #define SERVICE_UUID "01234567-0123-4567-89ab-0123456789ab"
-#define bleServerName "CornerNode3"
+// When uploading to each device change accordingly
+// #define bleServerName "CornerNode1" 
+// #define bleServerName "CornerNode2" 
+#define bleServerName "CornerNode3" 
 
 BLECharacteristic nodeCharacteristics("01234567-0123-4567-89ab-0123456789cd", BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 BLEDescriptor nodeDescriptor(BLEUUID((uint16_t)0x2902));
@@ -15,11 +18,23 @@ bool deviceConnected = false;
 class MyServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     deviceConnected = true;
+
     Serial.println("MyServerCallbacks::Connected...");
+
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setCursor(0, 0);
+    M5.Lcd.println(bleServerName);
+    M5.Lcd.println("Connected to a client!");
   };
   void onDisconnect(BLEServer* pServer) {
     deviceConnected = false;
+
     Serial.println("MyServerCallbacks::Disconnected...");
+
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setCursor(0, 0);
+    M5.Lcd.println(bleServerName);
+    M5.Lcd.println("Waiting for client connection...");
   }
 };
 
@@ -57,21 +72,8 @@ void loop() {
     if ((millis() - lastTime) > timerDelay) {
       nodeCharacteristics.setValue(bleServerName);
       nodeCharacteristics.notify();
-      
-      // Display node data on the LCD
-      M5.Lcd.fillScreen(BLACK);
-      M5.Lcd.setCursor(0, 0);
-      M5.Lcd.println(bleServerName);
-      M5.Lcd.println("Connected to a client!");
-
       lastTime = millis();
     }
-  } else {
-    // Display node data on the LCD
-    M5.Lcd.fillScreen(BLACK);
-    M5.Lcd.setCursor(0, 0);
-    M5.Lcd.println(bleServerName);
-    M5.Lcd.println("Waiting for client connection...");
   }
   delay(100);
 }

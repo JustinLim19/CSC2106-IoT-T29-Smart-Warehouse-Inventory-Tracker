@@ -2,8 +2,6 @@
 
 ## M5StickC Plus BLE Node Setup
 
-This repository contains code for setting up Bluetooth Low Energy (BLE) nodes using M5StickC Plus devices. These nodes include an AssetNode and CornerNode functionality.
-
 ### How to Set Up
 
 #### AssetNode Setup

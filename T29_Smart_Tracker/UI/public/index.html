@@ -28,21 +28,24 @@
 
     // Sample inventory data
     const inventory = [
-      { name: 'Item 1', position: { x: 5, y: 0, z: 5 }, description: 'Description of Item 1' },
-      { name: 'Item 2', position: { x: -5, y: 0, z: -5 }, description: 'Description of Item 2' },
+      { name: 'Item 1', position: { x: 5, y: 0, z: 5 }, description: 'Description of Item 1', texture: 'clock.png' },
+      { name: 'Item 2', position: { x: -5, y: 0, z: -5 }, description: 'Description of Item 2', texture: 'cross.png' },
       // Add more inventory items as needed
     ];
 
     // Create inventory container as a group
     const inventoryContainer = new THREE.Group();
 
-    // Create inventory items and add them as children of the inventory container
-    const itemGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const itemMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    // Load textures and create inventory items
+    const loader = new THREE.TextureLoader();
     inventory.forEach((itemData) => {
-      const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
-      itemMesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
-      inventoryContainer.add(itemMesh);
+      loader.load(itemData.texture, (texture) => {
+        const itemMaterial = new THREE.MeshBasicMaterial({ map: texture });
+        const itemGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
+        itemMesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
+        inventoryContainer.add(itemMesh);
+      });
     });
 
     // Add the inventory container as a child of the room

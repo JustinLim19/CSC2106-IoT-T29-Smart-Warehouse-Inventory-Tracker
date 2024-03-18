@@ -18,3 +18,8 @@
      // #define bleServerName "CornerNode3"
      ```
 3. Upload the modified `CornerNode.ino` to the respective M5StickC Plus device.
+
+#### UI Setup
+1. In the terminal run "npm install"
+2. CD to UI folder and type "node app.js"
+3. In web browser open link to "http://localhost:3000/"

@@ -1,13 +1,12 @@
-const http = require('http');
-const port = 3000;
+const express = require('express');
+const path = require('path');
 
-const server = http.createServer((req, res) => {
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/plain');
-    res.end('Hello, World!');
-});
+const app = express();
 
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
 
-server.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}/`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

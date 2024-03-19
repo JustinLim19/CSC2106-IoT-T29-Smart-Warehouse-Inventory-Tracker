@@ -6,7 +6,8 @@
 // When uploading to each device change accordingly
 // #define bleServerName "CornerNode1" 
 // #define bleServerName "CornerNode2" 
-#define bleServerName "CornerNode3" 
+// #define bleServerName "CornerNode3"
+#define bleServerName "CornerNode4"
 
 BLECharacteristic nodeCharacteristics("01234567-0123-4567-89ab-0123456789cd", BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 BLEDescriptor nodeDescriptor(BLEUUID((uint16_t)0x2902));

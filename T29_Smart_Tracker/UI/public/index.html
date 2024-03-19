@@ -7,6 +7,18 @@
   <style>
     body { margin: 0; }
     canvas { display: block; }
+    .popup {
+      position: absolute;
+      background-color: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+      pointer-events: none; /* Ensures the popup doesn't interfere with click events on the canvas */
+      display: none;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
   </style>
 </head>
 <body>
@@ -19,6 +31,11 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
     renderer.setClearColor(0x333333); // Set background color to dark gray
+
+    // Popup element
+    const popup = document.createElement('div');
+    popup.classList.add('popup');
+    document.body.appendChild(popup);
 
     // Create room
     const roomGeometry = new THREE.BoxGeometry(20, 10, 15); // Width, Height, Depth
@@ -44,6 +61,7 @@
         const itemGeometry = new THREE.BoxGeometry(1, 1, 1);
         const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
         itemMesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
+        itemMesh.userData = { name: itemData.name, position: itemData.position, description: itemData.description }; // Attach data to the item for click handling
         inventoryContainer.add(itemMesh);
       });
     });
@@ -59,8 +77,12 @@
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
 
+    // Variable to store currently selected item
+    let selectedItem = null;
+
     // Function to handle mouse down event
     function onMouseDown(event) {
+      event.preventDefault();
       isDragging = true;
       previousMousePosition = {
         x: event.clientX,
@@ -100,11 +122,46 @@
       camera.position.z = zoomLevel;
     }
 
+    // Function to handle click event on inventory items
+    function onDocumentClick(event) {
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      // Calculate mouse position in normalized device coordinates
+      mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+      mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+
+      // Update the picking ray with the camera and mouse position
+      raycaster.setFromCamera(mouse, camera);
+
+      // Calculate objects intersecting the picking ray
+      const intersects = raycaster.intersectObjects(inventoryContainer.children, true);
+
+      if (intersects.length > 0) {
+        const item = intersects[0].object;
+        const data = item.userData;
+        if (selectedItem !== item) {
+          const popupContent = `
+            <strong>Name:</strong> ${data.name}<br>
+            <strong>Position:</strong> (${data.position.x}, ${data.position.y}, ${data.position.z})<br>
+            <strong>Description:</strong> ${data.description}
+          `;
+          popup.innerHTML = popupContent;
+          popup.style.display = 'block';
+          selectedItem = item;
+        } else {
+          popup.style.display = 'none';
+          selectedItem = null;
+        }
+      }
+    }
+
     // Event listeners for mouse events
     document.addEventListener('mousedown', onMouseDown, false);
     document.addEventListener('mousemove', onMouseMove, false);
     document.addEventListener('mouseup', onMouseUp, false);
     document.addEventListener('wheel', onMouseWheel, false);
+    renderer.domElement.addEventListener('click', onDocumentClick, false);
 
     // Function to animate the scene
     function animate() {

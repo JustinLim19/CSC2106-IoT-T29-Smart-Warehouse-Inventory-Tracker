@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Rotating Room with Mouse Interaction and Zoom</title>
+  <title>Vertical Warehouse Inventory Management</title>
   <style>
     body { margin: 0; }
     canvas { display: block; }
@@ -153,6 +153,8 @@
           popup.style.display = 'none';
           selectedItem = null;
         }
+      } else {
+        popup.style.display = 'none'; // Hide popup if clicked outside inventory items
       }
     }
 
@@ -170,6 +172,7 @@
     }
 
     animate();
+    
   </script>
 </body>
 </html>

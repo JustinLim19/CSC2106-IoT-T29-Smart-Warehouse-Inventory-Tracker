@@ -1,19 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vertical Warehouse Inventory Management</title>
   <style>
-    body { margin: 0; }
-    canvas { display: block; }
+    body {
+      margin: 0;
+    }
+
+    canvas {
+      display: block;
+    }
+
     .popup {
       position: absolute;
       background-color: rgba(255, 255, 255, 0.9);
       padding: 10px;
       border-radius: 5px;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-      pointer-events: none; /* Ensures the popup doesn't interfere with click events on the canvas */
+      pointer-events: none;
+      /* Ensures the popup doesn't interfere with click events on the canvas */
       display: none;
       right: 10px;
       top: 50%;
@@ -21,9 +29,42 @@
     }
   </style>
 </head>
+
 <body>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>
+    // Establish WebSocket connection
+    const socket = new WebSocket('ws://localhost:8080'); // Change the address to your server address
+
+    // Event handler for when WebSocket connection is established
+    socket.onopen = function (event) {
+      console.log('WebSocket connection established');
+    };
+
+    // Event handler for when WebSocket receives a message
+    socket.onmessage = function (event) {
+      // Parse message (assuming it's JSON data containing coordinates)
+      const data = JSON.parse(event.data);
+
+      // Update inventory item positions based on received coordinates
+      updateInventoryItemPositions(data);
+    };
+
+    // Function to update inventory item positions
+    function updateInventoryItemPositions(data) {
+      // Iterate through inventory items and update positions
+      inventory.forEach((itemData, index) => {
+        // Assuming data contains coordinates for each item
+        if (data[index]) {
+          const item = inventoryContainer.children[index];
+          const newPosition = data[index];
+
+          item.position.set(newPosition.x, newPosition.y, newPosition.z);
+        }
+      });
+    }
+
+
     // Set up Three.js scene
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -170,7 +211,7 @@
           popup.innerHTML
           popup.innerHTML = popupContent;
           popup.style.display = 'block';
-         
+
           selectedItem = item;
         } else {
           popup.style.display = 'none';
@@ -235,24 +276,24 @@
     }
 
     // Helper function to create texture for labels
-function createLabelTexture(text) {
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  const fontSize = 30; // Larger font size
-  const fontFamily = 'Arial';
-  context.font = `Bold ${fontSize}px ${fontFamily}`;
-  context.fillStyle = '#000000'; // Black text color
-  context.fillText(text, 0, fontSize); // Adjust position for larger text
+    function createLabelTexture(text) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      const fontSize = 30; // Larger font size
+      const fontFamily = 'Arial';
+      context.font = `Bold ${fontSize}px ${fontFamily}`;
+      context.fillStyle = '#000000'; // Black text color
+      context.fillText(text, 0, fontSize); // Adjust position for larger text
 
-  const texture = new THREE.Texture(canvas);
-  texture.needsUpdate = true;
-  return texture;
-}
+      const texture = new THREE.Texture(canvas);
+      texture.needsUpdate = true;
+      return texture;
+    }
 
 
     // Function to update axis labels based on camera position and rotation
     function updateAxisLabels() {
-      scene.traverse(function(child) {
+      scene.traverse(function (child) {
         if (child instanceof THREE.Sprite) {
           child.lookAt(camera.position);
         }
@@ -262,4 +303,5 @@ function createLabelTexture(text) {
     animate();
   </script>
 </body>
+
 </html>

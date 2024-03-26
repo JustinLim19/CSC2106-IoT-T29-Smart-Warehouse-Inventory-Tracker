@@ -43,6 +43,11 @@
     const room = new THREE.Mesh(roomGeometry, roomMaterial);
     scene.add(room);
 
+    // Create grid
+    const gridHelper = new THREE.GridHelper(40, 40, 0x888888, 0x888888); // size, divisions, color1, color2
+    gridHelper.position.set(0, -5, 0); // position at the bottom of the room
+    room.add(gridHelper);
+
     // Sample inventory data
     const inventory = [
       { name: 'Item 1', position: { x: 5, y: 0, z: 5 }, description: 'Description of Item 1', texture: 'clock.png' },
@@ -53,18 +58,25 @@
     // Create inventory container as a group
     const inventoryContainer = new THREE.Group();
 
-    // Load textures and create inventory items
-    const loader = new THREE.TextureLoader();
-    inventory.forEach((itemData) => {
-      loader.load(itemData.texture, (texture) => {
-        const itemMaterial = new THREE.MeshBasicMaterial({ map: texture });
-        const itemGeometry = new THREE.BoxGeometry(1, 1, 1);
-        const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
-        itemMesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
-        itemMesh.userData = { name: itemData.name, position: itemData.position, description: itemData.description }; // Attach data to the item for click handling
-        inventoryContainer.add(itemMesh);
-      });
-    });
+ // Load textures and create inventory items
+const loader = new THREE.TextureLoader();
+inventory.forEach((itemData) => {
+  loader.load(itemData.texture, (texture) => {
+    const itemMaterial = new THREE.MeshBasicMaterial({ map: texture });
+    const itemGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
+    
+    // Set position
+    itemMesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
+    
+    // Set rotation to make the item perpendicular to the grid
+    itemMesh.rotation.set(-Math.PI / 2, 0, 0);
+
+    itemMesh.userData = { name: itemData.name, position: itemData.position, description: itemData.description }; // Attach data to the item for click handling
+    inventoryContainer.add(itemMesh);
+  });
+});
+
 
     // Add the inventory container as a child of the room
     room.add(inventoryContainer);
@@ -101,6 +113,9 @@
         // Rotate room based on mouse movement
         room.rotation.y += deltaMove.x * 0.01;
         room.rotation.x += deltaMove.y * 0.01;
+
+        // Rotate grid along with room
+        gridHelper.rotation.copy(room.rotation);
 
         previousMousePosition = {
           x: event.clientX,
@@ -165,14 +180,82 @@
     document.addEventListener('wheel', onMouseWheel, false);
     renderer.domElement.addEventListener('click', onDocumentClick, false);
 
-    // Function to animate the scene
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
+// Create a parent object to hold both the grid and the inventory container
+const sceneParent = new THREE.Group();
+sceneParent.add(room); // Add the room to the parent object
+sceneParent.add(gridHelper); // Add the grid to the parent object
+scene.add(sceneParent); // Add the parent object to the scene
+
+// Add the inventory container as a child of the scene parent
+sceneParent.add(inventoryContainer);
+
+// Function to animate the scene
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Update rotation of sceneParent to match the room's rotation
+  sceneParent.rotation.copy(room.rotation);
+
+  renderer.render(scene, camera);
+}
+
+// Create X, Y, and Z labels with numbering
+function createAxisLabels() {
+  const axisLabels = new THREE.Group();
+
+  // Calculate label positions
+  const gridSize = 40; // Size of the grid
+  const divisions = 40; // Number of divisions in the grid
+  const step = gridSize / divisions; // Step size between divisions
+
+  // X-axis labels
+  for (let i = 0; i <= divisions; i++) {
+    const label = createLabel(i * step - gridSize / 2, -2, 0, i);
+    axisLabels.add(label);
+  }
+
+  // Y-axis labels
+  for (let i = 0; i <= divisions; i++) {
+    const label = createLabel(0, i * step - gridSize / 2, -2, i);
+    axisLabels.add(label);
+  }
+
+  // Z-axis labels
+  for (let i = 0; i <= divisions; i++) {
+    const label = createLabel(0, -2, i * step - gridSize / 2, i);
+    axisLabels.add(label);
+  }
+
+  scene.add(axisLabels);
+}
+
+// Helper function to create labels
+function createLabel(x, y, z, text) {
+  const spriteMaterial = new THREE.SpriteMaterial({ map: createLabelTexture(text.toString()), transparent: true });
+  const sprite = new THREE.Sprite(spriteMaterial);
+  sprite.position.set(x, y, z);
+  sprite.scale.set(2, 1, 1); // Adjust label size
+  return sprite;
+}
+
+// Helper function to create texture for labels
+function createLabelTexture(text) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  context.font = 'Bold 20px Arial';
+  context.fillStyle = '#ffffff';
+  context.fillText(text, 0, 20);
+
+  const texture = new THREE.Texture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+// Call the function to create axis labels
+createAxisLabels();
+
 
     animate();
-    
   </script>
 </body>
 </html>

@@ -34,7 +34,7 @@ Basic Node Setup: https://nodejs.org/en/learn/getting-started/introduction-to-no
 We would like to express our gratitude to our project team members for their contributions: Liew Jun Wei, Abdul Halim Bin Abdul Rahim, Wong Kar Long Keagan, Mirza Anaqi Bin Muhammad Haizan, and Ang Guo Zheng Frederick.
 
 ## License
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the LICENSE file for more details.
 
 ## Contact Information
 For inquiries or support related to the Smart Warehouse Inventory Tracker project, please contact:

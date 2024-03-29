@@ -57,11 +57,11 @@ db.serialize(() => {
   db.run('DROP TABLE IF EXISTS mytable');
   db.run(`CREATE TABLE IF NOT EXISTS mytable (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      node TEXT,
+      name TEXT,
       xcoord TEXT,
       ycoord TEXT,
       zcoord TEXT,
-      CONSTRAINT unique_coordinates UNIQUE (node, xcoord, ycoord, zcoord)
+      CONSTRAINT unique_coordinates UNIQUE (name, xcoord, ycoord, zcoord)
   )`);
 });
 
@@ -92,10 +92,10 @@ app.post('/json_endpoint', (req, res) => {
   console.log('Received JSON data:', req.body);
 
   // Extract sensor and value from req.body
-  const { node, xcoord, ycoord, zcoord } = req.body;
+  const { name, xcoord, ycoord, zcoord } = req.body;
 
   // Store the received JSON data in the database
-  db.run('INSERT INTO mytable (node, xcoord, ycoord, zcoord) VALUES (?,?,?,?)', [node, xcoord,ycoord,zcoord], function(err) {
+  db.run('INSERT INTO mytable (name, xcoord, ycoord, zcoord) VALUES (?,?,?,?)', [name, xcoord,ycoord,zcoord], function(err) {
       if (err) {
           console.error(err.message);
           return res.status(500).send('Error inserting data into database');

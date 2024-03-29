@@ -46,6 +46,21 @@ const path = require('path');
 
 const app = express();
 const port = 3000;
+const sqlite3 = require('sqlite3').verbose();
+
+// Connect to SQLite database
+const db = new sqlite3.Database('iotData.db');
+
+// Create table if not exists
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS mytable (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      node TEXT,
+      xcoord TEXT,
+      ycoord TEXT,
+      zcoord TEXT
+  )`);
+});
 
 app.use(bodyParser.json());
 
@@ -69,9 +84,21 @@ app.get('/json_endpoint', (req, res) => {
 app.post('/json_endpoint', (req, res) => {
   // Handle incoming JSON data
   console.log('Received JSON data:', req.body);
-  // Store the received JSON data
-  jsonData = req.body;
+
+  // Extract sensor and value from req.body
+  const { node, xcoord, ycoord, zcoord } = req.body;
+
+  // Store the received JSON data in the database
+  db.run('INSERT INTO mytable (node, xcoord, ycoord, zcoord) VALUES (?, ?,?,?)', [node, xcoord,ycoord,zcoord], function(err) {
+      if (err) {
+          console.error(err.message);
+          return res.status(500).send('Error inserting data into database');
+      }
+      console.log('Data inserted successfully');
+      res.send('Data inserted successfully');
+  });
 });
+
 
 // Serve the index.html file
 app.get('/table', (req, res) => {

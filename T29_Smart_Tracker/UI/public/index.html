@@ -1,307 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vertical Warehouse Inventory Management</title>
-  <style>
-    body {
-      margin: 0;
-    }
-
-    canvas {
-      display: block;
-    }
-
-    .popup {
-      position: absolute;
-      background-color: rgba(255, 255, 255, 0.9);
-      padding: 10px;
-      border-radius: 5px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-      pointer-events: none;
-      /* Ensures the popup doesn't interfere with click events on the canvas */
-      display: none;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON Data Table</title>
+<style>
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  th, td {
+    border: 1px solid #dddddd;
+    text-align: left;
+    padding: 8px;
+  }
+  th {
+    background-color: #f2f2f2;
+  }
+</style>
 </head>
-
 <body>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script>
-    // Establish WebSocket connection
-    const socket = new WebSocket('ws://localhost:8080'); // Change the address to your server address
 
-    // Event handler for when WebSocket connection is established
-    socket.onopen = function (event) {
-      console.log('WebSocket connection established');
-    };
+<h2>JSON Data Table</h2>
+<table id="jsonTable">
+  <thead>
+    <tr>
+      <th>Key</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Data will be inserted here dynamically -->
+  </tbody>
+</table>
 
-    // Event handler for when WebSocket receives a message
-    socket.onmessage = function (event) {
-      // Parse message (assuming it's JSON data containing coordinates)
-      const data = JSON.parse(event.data);
-
-      // Update inventory item positions based on received coordinates
-      updateInventoryItemPositions(data);
-    };
-
-    // Function to update inventory item positions
-    function updateInventoryItemPositions(data) {
-      // Iterate through inventory items and update positions
-      inventory.forEach((itemData, index) => {
-        // Assuming data contains coordinates for each item
-        if (data[index]) {
-          const item = inventoryContainer.children[index];
-          const newPosition = data[index];
-
-          item.position.set(newPosition.x, newPosition.y, newPosition.z);
+<script>
+  fetch('/json_endpoint')
+    .then(response => response.json())
+    .then(data => {
+      const tableBody = document.querySelector('#jsonTable tbody');
+      for (const key in data) {
+        if (data.hasOwnProperty(key)) {
+          const row = tableBody.insertRow();
+          const cell1 = row.insertCell(0);
+          const cell2 = row.insertCell(1);
+          cell1.textContent = key;
+          cell2.textContent = data[key];
         }
-      });
-    }
-
-
-    // Set up Three.js scene
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-    const renderer = new THREE.WebGLRenderer();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-    renderer.setClearColor(0x333333); // Set background color to dark gray
-
-    // Popup element
-    const popup = document.createElement('div');
-    popup.classList.add('popup');
-    document.body.appendChild(popup);
-
-    // Create room
-    const roomGeometry = new THREE.BoxGeometry(20, 10, 15); // Width, Height, Depth
-    const roomMaterial = new THREE.MeshBasicMaterial({ color: 0xCCCCCC, side: THREE.BackSide });
-    const room = new THREE.Mesh(roomGeometry, roomMaterial);
-    scene.add(room);
-
-    // Create grid
-    const gridHelper = new THREE.GridHelper(40, 40, 0x888888, 0x888888); // size, divisions, color1, color2
-    gridHelper.position.set(0, -5, 0); // position at the bottom of the room
-    room.add(gridHelper);
-
-    // Sample inventory data
-    const inventory = [
-      { name: 'Item 1', position: { x: 5, y: 0, z: 5 }, description: 'Description of Item 1', texture: 'clock.png' },
-      { name: 'Item 2', position: { x: -5, y: 0, z: -5 }, description: 'Description of Item 2', texture: 'cross.png' },
-      // Add more inventory items as needed
-    ];
-
-    // Create inventory container as a group
-    const inventoryContainer = new THREE.Group();
-
-    // Load textures and create inventory items
-    const loader = new THREE.TextureLoader();
-    inventory.forEach((itemData) => {
-      loader.load(itemData.texture, (texture) => {
-        const itemMaterial = new THREE.MeshBasicMaterial({ map: texture });
-        const itemGeometry = new THREE.BoxGeometry(1, 1, 1);
-        const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
-
-        // Set position
-        itemMesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
-
-        // Set rotation to make the item perpendicular to the grid
-        itemMesh.rotation.set(-Math.PI / 2, 0, 0);
-
-        itemMesh.userData = { name: itemData.name, position: itemData.position, description: itemData.description }; // Attach data to the item for click handling
-        inventoryContainer.add(itemMesh);
-
-        // Create axis labels for this item
-        createAxisLabels(itemData.position.x, itemData.position.z, itemData.name);
-      });
-    });
-
-    // Add the inventory container as a child of the room
-    room.add(inventoryContainer);
-
-    // Set initial camera position and zoom level
-    camera.position.z = 30;
-    let zoomLevel = 30;
-
-    // Variables to track mouse movement and zooming
-    let isDragging = false;
-    let previousMousePosition = { x: 0, y: 0 };
-
-    // Variable to store currently selected item
-    let selectedItem = null;
-
-    // Global variable to store previous camera position and rotation
-    let prevCameraPosition = camera.position.clone();
-    let prevCameraRotation = camera.rotation.clone();
-
-    // Function to handle mouse down event
-    function onMouseDown(event) {
-      event.preventDefault();
-      isDragging = true;
-      previousMousePosition = {
-        x: event.clientX,
-        y: event.clientY
-      };
-    }
-
-    // Function to handle mouse move event
-    function onMouseMove(event) {
-      if (isDragging) {
-        const deltaMove = {
-          x: event.clientX - previousMousePosition.x,
-          y: event.clientY - previousMousePosition.y
-        };
-
-        // Rotate room based on mouse movement
-        room.rotation.y += deltaMove.x * 0.01;
-        room.rotation.x += deltaMove.y * 0.01;
-
-        // Rotate grid along with room
-        gridHelper.rotation.copy(room.rotation);
-
-        previousMousePosition = {
-          x: event.clientX,
-          y: event.clientY
-        };
       }
-    }
+    })
+    .catch(error => console.error('Error fetching data:', error));
+</script>
 
-    // Function to handle mouse up event
-    function onMouseUp() {
-      isDragging = false;
-    }
-
-    // Function to handle mouse wheel event
-    function onMouseWheel(event) {
-      zoomLevel += event.deltaY * 0.1; // Adjust zoom speed
-      zoomLevel = Math.max(10, Math.min(50, zoomLevel)); // Clamp zoom level
-
-      camera.position.z = zoomLevel;
-    }
-
-    // Function to handle click event on inventory items
-    function onDocumentClick(event) {
-      const raycaster = new THREE.Raycaster();
-      const mouse = new THREE.Vector2();
-
-      // Calculate mouse position in normalized device coordinates
-      mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-      mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
-
-      // Update the picking ray with the camera and mouse position
-      raycaster.setFromCamera(mouse, camera);
-
-      // Calculate objects intersecting the picking ray
-      const intersects = raycaster.intersectObjects(inventoryContainer.children, true);
-
-      if (intersects.length > 0) {
-        const item = intersects[0].object;
-        const data = item.userData;
-        if (selectedItem !== item) {
-          const popupContent = `
-            <strong>Name:</strong> ${data.name}<br>
-            <strong>Position:</strong> (${data.position.x}, ${data.position.y}, ${data.position.z})<br>
-            <strong>Description:</strong> ${data.description}
-          `;
-          popup.innerHTML
-          popup.innerHTML = popupContent;
-          popup.style.display = 'block';
-
-          selectedItem = item;
-        } else {
-          popup.style.display = 'none';
-          selectedItem = null;
-        }
-      } else {
-        popup.style.display = 'none'; // Hide popup if clicked outside inventory items
-      }
-    }
-
-    // Event listeners for mouse events
-    document.addEventListener('mousedown', onMouseDown, false);
-    document.addEventListener('mousemove', onMouseMove, false);
-    document.addEventListener('mouseup', onMouseUp, false);
-    document.addEventListener('wheel', onMouseWheel, false);
-    renderer.domElement.addEventListener('click', onDocumentClick, false);
-
-    // Create a parent object to hold both the grid and the inventory container
-    const sceneParent = new THREE.Group();
-    sceneParent.add(room); // Add the room to the parent object
-    sceneParent.add(gridHelper); // Add the grid to the parent object
-    scene.add(sceneParent); // Add the parent object to the scene
-
-    // Add the inventory container as a child of the scene parent
-    sceneParent.add(inventoryContainer);
-
-    // Function to animate the scene
-    function animate() {
-      requestAnimationFrame(animate);
-
-      // Update rotation of sceneParent to match the room's rotation
-      sceneParent.rotation.copy(room.rotation);
-
-      // Check if camera position or rotation has changed
-      if (!prevCameraPosition.equals(camera.position) || !prevCameraRotation.equals(camera.rotation)) {
-        updateAxisLabels(); // Update axis labels if camera has moved
-        prevCameraPosition.copy(camera.position);
-        prevCameraRotation.copy(camera.rotation);
-      }
-
-      renderer.render(scene, camera);
-    }
-
-    // Function to create axis labels
-    function createAxisLabels(x, z, name) {
-      const axisLabels = new THREE.Group();
-
-      // X-axis label
-      const xLabel = createLabel(x, -1, z, name);
-      axisLabels.add(xLabel);
-
-      sceneParent.add(axisLabels); // Add axis labels as children of sceneParent
-    }
-
-    // Helper function to create labels
-    function createLabel(x, y, z, text) {
-      const spriteMaterial = new THREE.SpriteMaterial({ map: createLabelTexture(text.toString()), transparent: true });
-      const sprite = new THREE.Sprite(spriteMaterial);
-      sprite.position.set(x, y, z);
-      sprite.scale.set(2, 1, 1); // Adjust label size
-      return sprite;
-    }
-
-    // Helper function to create texture for labels
-    function createLabelTexture(text) {
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      const fontSize = 30; // Larger font size
-      const fontFamily = 'Arial';
-      context.font = `Bold ${fontSize}px ${fontFamily}`;
-      context.fillStyle = '#000000'; // Black text color
-      context.fillText(text, 0, fontSize); // Adjust position for larger text
-
-      const texture = new THREE.Texture(canvas);
-      texture.needsUpdate = true;
-      return texture;
-    }
-
-
-    // Function to update axis labels based on camera position and rotation
-    function updateAxisLabels() {
-      scene.traverse(function (child) {
-        if (child instanceof THREE.Sprite) {
-          child.lookAt(camera.position);
-        }
-      });
-    }
-
-    animate();
-  </script>
 </body>
-
 </html>

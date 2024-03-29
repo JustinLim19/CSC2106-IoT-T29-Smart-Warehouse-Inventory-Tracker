@@ -53,16 +53,22 @@ const db = new sqlite3.Database('iotData.db');
 
 // Create table if not exists
 db.serialize(() => {
+  // Drop existing table if it exists
+  db.run('DROP TABLE IF EXISTS mytable');
   db.run(`CREATE TABLE IF NOT EXISTS mytable (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       node TEXT,
       xcoord TEXT,
       ycoord TEXT,
-      zcoord TEXT
+      zcoord TEXT,
+      CONSTRAINT unique_coordinates UNIQUE (node, xcoord, ycoord, zcoord)
   )`);
 });
 
 app.use(bodyParser.json());
+
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 let jsonData = null; // Variable to store the received JSON data
 
@@ -80,7 +86,7 @@ app.get('/json_endpoint', (req, res) => {
   }
 });
 
-// Define a route handler for POST requests to '/json_endpoint'
+// Handles the JSON POST request from your m5stick
 app.post('/json_endpoint', (req, res) => {
   // Handle incoming JSON data
   console.log('Received JSON data:', req.body);
@@ -89,7 +95,7 @@ app.post('/json_endpoint', (req, res) => {
   const { node, xcoord, ycoord, zcoord } = req.body;
 
   // Store the received JSON data in the database
-  db.run('INSERT INTO mytable (node, xcoord, ycoord, zcoord) VALUES (?, ?,?,?)', [node, xcoord,ycoord,zcoord], function(err) {
+  db.run('INSERT INTO mytable (node, xcoord, ycoord, zcoord) VALUES (?,?,?,?)', [node, xcoord,ycoord,zcoord], function(err) {
       if (err) {
           console.error(err.message);
           return res.status(500).send('Error inserting data into database');
@@ -107,4 +113,17 @@ app.get('/table', (req, res) => {
 
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
+});
+
+// Define a route handler for GET requests to '/data'
+app.get('/data', (req, res) => {
+  // Query the database to retrieve data
+  db.all('SELECT * FROM mytable', (err, rows) => {
+      if (err) {
+          console.error(err.message);
+          return res.status(500).send('Error fetching data from database');
+      }
+      // Send the retrieved data as JSON response
+      res.json(rows);
+  });
 });

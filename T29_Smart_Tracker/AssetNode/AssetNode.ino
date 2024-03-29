@@ -2,37 +2,24 @@
 #include <M5StickCPlus.h>
 
 #define SERVICE_UUID "01234567-0123-4567-89ab-0123456789ab"
-
-#define MAX_NODES 4
-
-static BLEUUID nodeCharacteristicUUID("01234567-0123-4567-89ab-0123456789cd");
-static BLEUUID serviceUUID(SERVICE_UUID);
-
-static boolean doConnect = false;
-static boolean connected = false;
-
-static BLEAddress *pServerAddress;
-static BLERemoteCharacteristic* nodeCharacteristic;
-static BLEAddress *pServerAddresses[MAX_NODES];
-
-static BLEClient* pClient;
+#define MAX_NODES 3
 
 const uint8_t notificationOn[] = {0x1, 0x0};
 const uint8_t notificationOff[] = {0x0, 0x0};
 
-char* nodeStr;
-boolean newNode = false;
+static BLEUUID nodeCharacteristicUUID("01234567-0123-4567-89ab-0123456789cd");
+static BLEUUID serviceUUID(SERVICE_UUID);
 
-// Known nodes (coordinates) of corner nodes
-double xCornerNode1 = 1.0;
-double yCornerNode1 = 1.0;
-double xCornerNode2 = 6.0; // Example coordinates (adjust as per your setup)
-double yCornerNode2 = 1.0;
-double xCornerNode3 = 1.0;
-double yCornerNode3 = 6.0;
+static BLEAddress *pServerAddresses[MAX_NODES];
+static BLERemoteCharacteristic* nodeCharacteristic;
+static BLEClient* pClient;
 
-int cornerNodeRssiArr[MAX_NODES] = { 0, 0, 0, 0 }; // RSSI values from corner nodes
-double distancesCornerNodes[MAX_NODES] = { 0.0, 0.0, 0.0, 0.0 }; // Distances from corner nodes to asset node
+// Define the coordinates of the corner nodes
+double xCornerNode[] = {1.0, 6.0, 1.0}; // Example x coordinates of corner nodes
+double yCornerNode[] = {1.0, 1.0, 6.0}; // Example y coordinates of corner nodes
+
+int cornerNodeRssiArr[MAX_NODES] = { 0, 0, 0 }; // RSSI values from corner nodes
+double distancesCornerNodes[MAX_NODES] = { 0.0, 0.0, 0.0 }; // Distances from corner nodes to asset node
 
 // Variables to store estimated node of asset node
 double xAssetNode = 0.0;
@@ -42,11 +29,20 @@ std::string cornerNodes[] = {
   "CornerNode1",
   "CornerNode2",
   "CornerNode3",
-  "CornerNode4"
+  // "CornerNode4"
 };
 
 int cornerNodesDiscovered = 0;
-bool gotAllRssi = false;
+
+static boolean doConnect = false;
+static boolean connected = false;
+
+// Function prototypes
+double rssiToDistance(int rssi);
+void performTrilateration();
+bool getNodeAddresses(BLEScan* pBLEScan);
+void printReadings();
+bool connectToServer(BLEAddress pAddress, int index);
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
@@ -57,6 +53,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
 class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient* pclient) {
     connected = true;
+    Serial.println("onConnect");
   }
 
   void onDisconnect(BLEClient* pclient) {
@@ -76,35 +73,38 @@ double rssiToDistance(int rssi) {
 }
 
 void performTrilateration() {
-    // Calculate distances from RSSI values using path loss model
-    for (int i = 0; i < MAX_NODES; i++) {
-      distancesCornerNodes[i] = rssiToDistance(cornerNodeRssiArr[i]);
-      Serial.print("Distance "); Serial.print(i+1); Serial.print(" "); Serial.print(distancesCornerNodes[i]); Serial.println();
+    double totalWeight = 0.0;
+    double weightedX = 0.0;
+    double weightedY = 0.0;
+
+    // Calculate total weight and weighted sum of coordinates
+    for (int i = 0; i < 3; i++) {
+        double distance = rssiToDistance(cornerNodeRssiArr[i]);
+
+        // Avoid division by zero
+        if (distance != 0) {
+            totalWeight += 1.0 / distance;
+            weightedX += (1.0 / distance) * xCornerNode[i];
+            weightedY += (1.0 / distance) * yCornerNode[i];
+        }
     }
 
-    // Trilateration algorithm
-    // Solve equations based on distances and known nodes of corner nodes
-    // to estimate the coordinates of the asset node
-    // Example algorithm:
-    // Calculate intermediate values for trilateration equations
-    double A = 2 * (xCornerNode2 - xCornerNode1);
-    double B = 2 * (yCornerNode2 - yCornerNode1);
-    double C = 2 * (xCornerNode3 - xCornerNode1);
-    double D = 2 * (yCornerNode3 - yCornerNode1);
-    Serial.printf("A:%f, B:%f, C:%f, D:%f", A, B, C, D); Serial.println();
-
-    double E = pow(xCornerNode2, 2) - pow(xCornerNode1, 2) + pow(yCornerNode2, 2) - pow(yCornerNode1, 2) + pow(distancesCornerNodes[0], 2) - pow(distancesCornerNodes[1], 2);
-    double F = pow(xCornerNode3, 2) - pow(xCornerNode1, 2) + pow(yCornerNode3, 2) - pow(yCornerNode1, 2) + pow(distancesCornerNodes[0], 2) - pow(distancesCornerNodes[2], 2);
-
-    Serial.printf("E:%f, F:%f", E, F); Serial.println();
-
-    // Calculate asset node's coordinates
-    xAssetNode = (E * D - B * F) / (A * D - B * C);
-    yAssetNode = (A * F - E * C) / (A * D - B * C);
+    // Calculate interpolated coordinates
+    if (totalWeight != 0) {
+        xAssetNode = weightedX / totalWeight;
+        yAssetNode = weightedY / totalWeight;
+    } else {
+        // Handle the case when all distances are zero (or near zero)
+        // Set asset node coordinates to an arbitrary value or handle it according to your application's requirements
+        xAssetNode = 0.0;
+        yAssetNode = 0.0;
+        Serial.println("Error: All distances are zero (or near zero)");
+    }
 }
 
 bool getNodeAddresses(BLEScan* pBLEScan) {
   Serial.println("Searching for corner nodes...");
+
 
   // Will keep scanning until all corner nodes found
   while (cornerNodesDiscovered < MAX_NODES) {
@@ -119,22 +119,24 @@ bool getNodeAddresses(BLEScan* pBLEScan) {
         cornerNodesDiscovered++;
       }
     }
+    pBLEScan->stop();
+    pBLEScan->clearResults();
+    // delete pBLEScan;
   }
 
-  gotAllRssi = true;
   cornerNodesDiscovered = 0;
   Serial.println("Found all corner nodes!");
+
   return true;
 }
 
 static void nodeNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-  nodeStr = (char*)pData;
-  Serial.println(nodeStr);
-  newNode = true;
+  //
 }
 
 void setup() {
   Serial.begin(115200);
+
   M5.begin();
   M5.Lcd.setRotation(3);
   M5.Lcd.fillScreen(BLACK);
@@ -156,7 +158,7 @@ void setup() {
 
 void printReadings() {
   M5.Lcd.setCursor(0, 20, 2);
-  M5.Lcd.printf("Asset Location = ( %f, %f )", xAssetNode, yAssetNode);
+  M5.Lcd.printf("Asset Location = (%.2f, %.2f)", xAssetNode, yAssetNode);
   M5.Lcd.println();
 
   // Print each corner node RSSI
@@ -164,17 +166,31 @@ void printReadings() {
   for (int i = 0; i < MAX_NODES; i++) {
     M5.Lcd.print("Corner Node ");
     M5.Lcd.print(i + 1);
-    M5.Lcd.print(" = ");
+    M5.Lcd.print(" RSSI = ");
     M5.Lcd.print(cornerNodeRssiArr[i]);
     M5.Lcd.println();
   }
 }
 
 bool connectToServer(BLEAddress pAddress, int index) {
+  Serial.print("Connecting to CornerNode"); Serial.println(index+1);
+
   pClient = BLEDevice::createClient();
   pClient->setClientCallbacks(new MyClientCallback());
  
-  pClient->connect(pAddress);
+  unsigned long startTime = millis(); // Record the start time
+
+  // Attempt to connect to the server
+  while (!pClient->connect(pAddress)) {
+    // Check if timeout has occurred
+    if (millis() - startTime > 5000) {
+      Serial.println("Failed to connect, retrying...");
+      pClient->disconnect();
+      delay(1000);
+      pClient = BLEDevice::createClient();
+      startTime = millis();
+    }
+  }
   Serial.println(" - Connected to server");
 
   cornerNodeRssiArr[index] = pClient->getRssi();
@@ -184,6 +200,7 @@ bool connectToServer(BLEAddress pAddress, int index) {
     Serial.println("Failed to find our service UUID");
     return false;
   }
+  Serial.println(" - Found our service");
 
   nodeCharacteristic = pRemoteService->getCharacteristic(nodeCharacteristicUUID);
   if (nodeCharacteristic == nullptr) {
@@ -192,30 +209,32 @@ bool connectToServer(BLEAddress pAddress, int index) {
   }
   Serial.println(" - Found our characteristics");
   nodeCharacteristic->registerForNotify(nodeNotifyCallback);
+
+  pClient->disconnect();
+  // delete pClient;  // Release resources
+  // delete nodeCharacteristic;
+  delay(1000);
   
   return true;
 }
 
 void loop() {
+  // printMemoryUsage();
   if (doConnect) {
     // Connect to each corner node found
     for (int i = 0; i < MAX_NODES; i++) {
-      if (connectToServer(*pServerAddresses[i], i)) {
-        Serial.print("Connected to the BLE Server: "); Serial.println(pServerAddresses[i]->toString().c_str());
-        nodeCharacteristic->getDescriptor(BLEUUID((uint16_t)0x2902))->writeValue((uint8_t*)notificationOn, 2, true);
-      } 
-      else {
+      if (!connectToServer(*pServerAddresses[i], i)) {
         Serial.println("Failed to connect to the server; Restart device to scan for nearby BLE server again.");
+        pClient->disconnect();
       }
-      pClient->disconnect();
+      delay(1000);
     }
     doConnect = false;
-  } 
+  }
   else {
     performTrilateration();
     printReadings();
     doConnect = true;
   }
-    
   delay(1000);  // Delay one second between loops.
 }

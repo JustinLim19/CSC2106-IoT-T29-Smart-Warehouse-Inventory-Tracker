@@ -2,7 +2,7 @@
 #include <M5StickCPlus.h>
 
 #define SERVICE_UUID "01234567-0123-4567-89ab-0123456789ab"
-#define MAX_NODES 3
+#define MAX_NODES 4
 
 const uint8_t notificationOn[] = {0x1, 0x0};
 const uint8_t notificationOff[] = {0x0, 0x0};
@@ -15,27 +15,27 @@ static BLERemoteCharacteristic* nodeCharacteristic;
 static BLEClient* pClient;
 
 // Define the coordinates of the corner nodes
-double xCornerNode[] = {1.0, 6.0, 1.0}; // Example x coordinates of corner nodes
-double yCornerNode[] = {1.0, 1.0, 6.0}; // Example y coordinates of corner nodes
+double xCornerNode[] = {1.0, 6.0, 1.0, 1.0}; // Example x coordinates of corner nodes
+double yCornerNode[] = {1.0, 1.0, 6.0, 1.0}; // Example y coordinates of corner nodes
+double zCornerNode[] = {1.0, 1.0, 1.0, 6.0}; // Example z coordinates of corner nodes
 
-int cornerNodeRssiArr[MAX_NODES] = { 0, 0, 0 }; // RSSI values from corner nodes
-double distancesCornerNodes[MAX_NODES] = { 0.0, 0.0, 0.0 }; // Distances from corner nodes to asset node
+int cornerNodeRssiArr[MAX_NODES]; // RSSI values from corner nodes
+double distancesCornerNodes[MAX_NODES]; // Distances from corner nodes to asset node
 
 // Variables to store estimated node of asset node
 double xAssetNode = 0.0;
 double yAssetNode = 0.0;
+double zAssetNode = 0.0;
 
 std::string cornerNodes[] = {
   "CornerNode1",
   "CornerNode2",
   "CornerNode3",
-  // "CornerNode4"
+  "CornerNode4"
 };
 
 int cornerNodesDiscovered = 0;
-
 static boolean doConnect = false;
-static boolean connected = false;
 
 // Function prototypes
 double rssiToDistance(int rssi);
@@ -52,59 +52,60 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
 
 class MyClientCallback : public BLEClientCallbacks {
   void onConnect(BLEClient* pclient) {
-    connected = true;
     Serial.println("onConnect");
   }
 
   void onDisconnect(BLEClient* pclient) {
-    connected = false;
     Serial.println("onDisconnect");
   }
 };
 
 double rssiToDistance(int rssi) {
-    // Implement path loss model here
-    // Example: distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
-    // You'll need to adjust the constants A and n based on your environment and hardware characteristics
-    // This is just a placeholder, you should replace it with a proper path loss model
-    double A = -50; // Example constant
-    double n = 2.0; // Example constant
-    return pow(10, (A - rssi) / (10 * n));
+  // Implement path loss model here
+  // Example: distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
+  // You'll need to adjust the constants A and n based on your environment and hardware characteristics
+  // This is just a placeholder, you should replace it with a proper path loss model
+  double A = -50; // Example constant
+  double n = 2.0; // Example constant
+  return pow(10, (A - rssi) / (10 * n));
 }
 
 void performTrilateration() {
-    double totalWeight = 0.0;
-    double weightedX = 0.0;
-    double weightedY = 0.0;
+  double totalWeight = 0.0;
+  double weightedX = 0.0;
+  double weightedY = 0.0;
+  double weightedZ = 0.0;
 
-    // Calculate total weight and weighted sum of coordinates
-    for (int i = 0; i < 3; i++) {
-        double distance = rssiToDistance(cornerNodeRssiArr[i]);
+  // Calculate total weight and weighted sum of coordinates
+  for (int i = 0; i < MAX_NODES; i++) {
+    double distance = rssiToDistance(cornerNodeRssiArr[i]);
 
-        // Avoid division by zero
-        if (distance != 0) {
-            totalWeight += 1.0 / distance;
-            weightedX += (1.0 / distance) * xCornerNode[i];
-            weightedY += (1.0 / distance) * yCornerNode[i];
-        }
+    // Avoid division by zero
+    if (distance != 0) {
+      totalWeight += 1.0 / distance;
+      weightedX += (1.0 / distance) * xCornerNode[i];
+      weightedY += (1.0 / distance) * yCornerNode[i];
+      weightedZ += (1.0 / distance) * zCornerNode[i];
     }
+  }
 
-    // Calculate interpolated coordinates
-    if (totalWeight != 0) {
-        xAssetNode = weightedX / totalWeight;
-        yAssetNode = weightedY / totalWeight;
-    } else {
-        // Handle the case when all distances are zero (or near zero)
-        // Set asset node coordinates to an arbitrary value or handle it according to your application's requirements
-        xAssetNode = 0.0;
-        yAssetNode = 0.0;
-        Serial.println("Error: All distances are zero (or near zero)");
-    }
+  // Calculate interpolated coordinates
+  if (totalWeight != 0) {
+    xAssetNode = weightedX / totalWeight;
+    yAssetNode = weightedY / totalWeight;
+    zAssetNode = weightedZ / totalWeight;
+  } else {
+    // Handle the case when all distances are zero (or near zero)
+    // Set asset node coordinates to an arbitrary value or handle it according to your application's requirements
+    xAssetNode = 0.0;
+    yAssetNode = 0.0;
+    zAssetNode = 0.0;
+    Serial.println("Error: All distances are zero (or near zero)");
+  }
 }
 
 bool getNodeAddresses(BLEScan* pBLEScan) {
   Serial.println("Searching for corner nodes...");
-
 
   // Will keep scanning until all corner nodes found
   while (cornerNodesDiscovered < MAX_NODES) {
@@ -131,7 +132,7 @@ bool getNodeAddresses(BLEScan* pBLEScan) {
 }
 
 static void nodeNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-  //
+  // Handle notification callback if needed
 }
 
 void setup() {
@@ -158,7 +159,7 @@ void setup() {
 
 void printReadings() {
   M5.Lcd.setCursor(0, 20, 2);
-  M5.Lcd.printf("Asset Location = (%.2f, %.2f)", xAssetNode, yAssetNode);
+  M5.Lcd.printf("Asset Location = (%.2f, %.2f, %.2f)", xAssetNode, yAssetNode, zAssetNode);
   M5.Lcd.println();
 
   // Print each corner node RSSI

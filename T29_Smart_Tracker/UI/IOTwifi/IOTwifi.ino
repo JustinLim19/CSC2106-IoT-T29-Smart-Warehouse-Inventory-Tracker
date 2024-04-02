@@ -21,13 +21,11 @@ void setup() {
     Serial.println("Connecting to WiFi..");
   }
   Serial.println("Connected to WiFi");
-
 }
 
 
 
 void sendMessage(){
-
   // Sample JSON data
   DynamicJsonDocument jsonDoc(200);
   jsonDoc["name"] = nodeValue;
@@ -41,7 +39,7 @@ void sendMessage(){
   serializeJson(jsonDoc, jsonString);
 
 
-    // Send JSON data to server
+  // Send JSON data to server
   HTTPClient http;
   http.begin(serverUrl);
   http.addHeader("Content-Type", "application/json");

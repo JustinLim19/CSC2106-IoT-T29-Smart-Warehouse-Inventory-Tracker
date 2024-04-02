@@ -1,9 +1,17 @@
 #include "BLEDevice.h"
 #include <M5StickCPlus.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
 #define SERVICE_UUID "01234567-0123-4567-89ab-0123456789ab"
 #define CHARACTERISTIC_UUID "01234567-0123-4567-89ab-0123456789cd"
 #define MAX_NODES 4
+
+/* Put your SSID & Password */
+const char* ssid = "SINGTEL-F492";
+const char* password = "caeceegabe";
+const char* serverUrl = "http://192.168.1.1:3000/json_endpoint";
 
 const uint8_t notificationOn[] = {0x1, 0x0};
 const uint8_t notificationOff[] = {0x0, 0x0};
@@ -42,6 +50,7 @@ static boolean doConnect = false;
 double rssiToDistance(int rssi);
 void performTrilateration();
 bool getNodeAddresses(BLEScan* pBLEScan);
+void sendMessage();
 void printReadings();
 bool connectToServer(BLEAddress pAddress, int index);
 
@@ -66,7 +75,6 @@ double rssiToDistance(int rssi) {
     Serial.println("Error: RSSI value is zero (or near zero)");
     return 0;
   }
-
   // Implement path loss model here
   // distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
   double A = -50; // Example constant
@@ -129,7 +137,6 @@ bool getNodeAddresses(BLEScan* pBLEScan) {
 
   cornerNodesDiscovered = 0;
   Serial.println("Found all corner nodes!");
-
   return true;
 }
 
@@ -139,6 +146,14 @@ static void nodeNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic
 
 void setup() {
   Serial.begin(115200);
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Connected to WiFi");
 
   M5.begin();
   M5.Lcd.setRotation(3);
@@ -159,9 +174,34 @@ void setup() {
   }
 }
 
+void sendMessage() {
+  // Sample JSON data
+  DynamicJsonDocument jsonDoc(200);
+  jsonDoc["name"] = "AssetNode";
+  jsonDoc["xcoord"] = xAssetNode;
+  jsonDoc["ycoord"] = yAssetNode;
+  jsonDoc["zcoord"] = zAssetNode;
+
+  // Convert JSON document to string
+  String jsonString;
+  serializeJson(jsonDoc, jsonString);
+
+  // Send JSON data to server
+  HTTPClient http;
+  http.begin(serverUrl);
+  http.addHeader("Content-Type", "application/json");
+  int httpResponseCode = http.POST(jsonString);
+  if (httpResponseCode > 0) {
+    Serial.printf("HTTP Response code: %d\n", httpResponseCode);
+  } else {
+    Serial.printf("Error code: %d\n", httpResponseCode);
+  }
+  http.end();
+}
+
 void printReadings() {
   M5.Lcd.setCursor(0, 20, 2);
-  M5.Lcd.printf("Asset Location = (%.2f, %.2f, %.2f)", xAssetNode, yAssetNode, zAssetNode);
+  M5.Lcd.printf("Asset Location = (%.0f, %.0f, %.0f)", xAssetNode, yAssetNode, zAssetNode);
   M5.Lcd.println();
 
   // Print each corner node RSSI
@@ -175,7 +215,7 @@ void printReadings() {
   }
 }
 
-void connectToServer(BLEAddress pAddress, int index) {
+bool connectToServer(BLEAddress pAddress, int index) {
   Serial.print("Connecting to CornerNode"); Serial.println(index+1);
 
   pClient = BLEDevice::createClient();
@@ -201,32 +241,38 @@ void connectToServer(BLEAddress pAddress, int index) {
   BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
   if (pRemoteService == nullptr) {
     Serial.println("Failed to find our service UUID");
+    return false;
   }
   Serial.println(" - Found our service");
 
   nodeCharacteristic = pRemoteService->getCharacteristic(nodeCharacteristicUUID);
   if (nodeCharacteristic == nullptr) {
     Serial.println("Failed to find our characteristic UUID");
+    return false;
   }
   Serial.println(" - Found our characteristics");
   nodeCharacteristic->registerForNotify(nodeNotifyCallback);
 
   pClient->disconnect();
   delay(1000);
+  return true;
 }
 
 void loop() {
-  // printMemoryUsage();
   if (doConnect) {
     // Connect to each corner node found
     for (int i = 0; i < MAX_NODES; i++) {
-      connectToServer(*pServerAddresses[i], i);
+      if (!connectToServer(*pServerAddresses[i], i)) {
+        Serial.println("Failed to connect to the server; Restart device to scan for nearby BLE server again.");
+        pClient->disconnect();
+      }
       delay(1000);
     }
     doConnect = false;
   }
   else {
     performTrilateration();
+    sendMessage();
     printReadings();
     doConnect = true;
   }

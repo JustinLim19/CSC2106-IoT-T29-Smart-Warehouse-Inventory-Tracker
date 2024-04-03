@@ -65,7 +65,7 @@
         }
       });
     }
-	
+
 
     // Set up Three.js scene
     const scene = new THREE.Scene();
@@ -91,12 +91,27 @@
     gridHelper.position.set(0, -5, 0); // position at the bottom of the room
     room.add(gridHelper);
 
-    // Sample inventory data
+    // Define an empty inventory array
     const inventory = [
-      { name: '-1', position: { x: -1, y: -1, z: -1 }, description: 'Description of Item 1', texture: 'clock.png' },
-      { name: '-2', position: { x: -2, y: -2, z: -2 }, description: 'Description of Item 2', texture: 'cross.png' },
+      { name: '-1', position: { x: -1, y: -1, z: -1 }, description: 'Description of Item 1', texture: 'clock.png' }
       // Add more inventory items as needed
     ];
+
+    // Fetch data from the server and populate the inventory array
+    $(document).ready(function () {
+      $.get('/data', function (data) {
+        data.forEach(function (item) {
+          // Push each item to the inventory array
+          const x = parseInt(item.xcoord);
+          const y = parseInt(item.ycoord);
+          const z = parseInt(item.zcoord);
+        });
+        console.log(inventory);
+        // After populating the inventory array, you can perform any further actions here
+        // For example, you can render the 3D model
+      });
+    });
+
 
     // Create inventory container as a group
     const inventoryContainer = new THREE.Group();
@@ -119,7 +134,7 @@
         inventoryContainer.add(itemMesh);
 
         // Create axis labels for this item
-        createAxisLabels(itemData.position.x, itemData.position.z, itemData.name);
+        //createAxisLabels(itemData.position.x, itemData.position.z, itemData.name);
       });
     });
 
@@ -129,7 +144,8 @@
     // Set initial camera position and zoom level
     camera.position.z = 30;
     let zoomLevel = 30;
-
+    // Call updateInventory to fetch and render dynamically added items
+    updateInventory();
     // Variables to track mouse movement and zooming
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
@@ -301,14 +317,44 @@
         }
       });
     }
-    function updateInventory(row){
-      $(document).ready(function() {
-            $.get('/data', function(data) {
-                data.forEach(function(row) {
-                    inventory.push({ name: row.name, position: { x: row.xcoord, y: row.ycoord, z: row.zcoord }, description: 'Description of Item 3', texture: 'cross.png' });
-                });
-            });
+    function updateInventory() {
+      $.get('/data', function (data) {
+        data.forEach(function (row) {
+          inventory.push({
+            name: row.name,
+            position: { x: parseFloat(row.xcoord), y: parseFloat(row.ycoord), z: parseFloat(row.zcoord) },
+            description: 'Description of Item',
+            texture: 'cross.png'
+          });
         });
+
+        // Clear existing inventory container
+        while (inventoryContainer.children.length) {
+          inventoryContainer.remove(inventoryContainer.children[0]);
+        }
+
+        // Re-render all items in the inventory array
+        inventory.forEach(function (itemData) {
+          loader.load(itemData.texture, function (texture) {
+            const itemMaterial = new THREE.MeshBasicMaterial({ map: texture });
+            const itemGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const itemMesh = new THREE.Mesh(itemGeometry, itemMaterial);
+
+            const newPosition = itemData.position;
+            itemMesh.position.set(newPosition.x, newPosition.y, newPosition.z);
+            itemMesh.rotation.set(-Math.PI / 2, 0, 0);
+
+            itemMesh.userData = {
+              name: itemData.name,
+              position: newPosition,
+              description: itemData.description
+            };
+
+            inventoryContainer.add(itemMesh);
+            //createAxisLabels(newPosition.x, newPosition.z, itemData.name);
+          });
+        });
+      });
     }
 
     animate();
@@ -316,62 +362,3 @@
 </body>
 
 </html>
-
-
-
-<!-- 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Display Database Values</title>
-    <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
-        }
-        th, td {
-            border: 1px solid #dddddd;
-            text-align: left;
-            padding: 8px;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-    </style>
-</head>
-<body>
-    <h1>Database Values</h1>
-    <table id="data-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>X Coordinate</th>
-                <th>Y Coordinate</th>
-                <th>Z Coordinate</th>
-            </tr>
-        </thead>
-        <tbody id="data-body"></tbody>
-    </table> -->
-<!-- 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        // Fetch data from the server and display it in a table
-        $(document).ready(function() {
-            $.get('/data', function(data) {
-                data.forEach(function(row) {
-                    $('#data-body').append(`
-                        <tr>
-                            <td>${row.name}</td>
-                            <td>${row.xcoord}</td>
-                            <td>${row.ycoord}</td>
-                            <td>${row.zcoord}</td>
-                        </tr>
-                    `);
-                });
-            });
-        });
-    </script> -->
-<!-- </body>
-</html> -->

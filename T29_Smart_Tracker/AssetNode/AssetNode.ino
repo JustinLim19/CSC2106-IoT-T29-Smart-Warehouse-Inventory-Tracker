@@ -1,4 +1,4 @@
-#include "BLEDevice.h"
+#include "NimBLEDevice.h"
 #include <M5StickCPlus.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -9,19 +9,19 @@
 #define MAX_NODES 4
 
 /* Put your SSID & Password */
-const char* ssid = "SINGTEL-F492";
-const char* password = "caeceegabe";
-const char* serverUrl = "http://192.168.1.1:3000/json_endpoint";
+const char* ssid = "SINGTEL-F492";    // Change to your WiFi SSID
+const char* password = "caeceegabe";  // Change to your WiFi password
+const char* serverUrl = "http://192.168.1.79:3000/json_endpoint"; // Change to your WiFi's IPv4 address
 
 const uint8_t notificationOn[] = {0x1, 0x0};
 const uint8_t notificationOff[] = {0x0, 0x0};
 
-static BLEUUID nodeCharacteristicUUID(CHARACTERISTIC_UUID);
-static BLEUUID serviceUUID(SERVICE_UUID);
+static NimBLEUUID nodeCharacteristicUUID(CHARACTERISTIC_UUID);
+static NimBLEUUID serviceUUID(SERVICE_UUID);
 
-static BLEAddress *pServerAddresses[MAX_NODES];
-static BLERemoteCharacteristic* nodeCharacteristic;
-static BLEClient* pClient;
+static NimBLEAdvertisedDevice* pAdvertisedDevices[MAX_NODES];
+static NimBLERemoteCharacteristic* nodeCharacteristic;
+static NimBLEClient* pClient;
 
 // Define the coordinates of the corner nodes
 double xCornerNode[] = {1.0, 6.0, 1.0, 1.0}; // Example x coordinates of corner nodes
@@ -36,39 +36,123 @@ double xAssetNode = 0.0;
 double yAssetNode = 0.0;
 double zAssetNode = 0.0;
 
-std::string cornerNodes[] = {
-  "CornerNode1",
-  "CornerNode2",
-  "CornerNode3",
-  "CornerNode4"
-};
-
-int cornerNodesDiscovered = 0;
-static boolean doConnect = false;
-
 // Function prototypes
 double rssiToDistance(int rssi);
 void performTrilateration();
-bool getNodeAddresses(BLEScan* pBLEScan);
+bool getNodeAddresses(NimBLEScan* pBLEScan);
 void sendMessage();
 void printReadings();
-bool connectToServer(BLEAddress pAddress, int index);
+bool connectToServer(NimBLEAdvertisedDevice* pDevice, int index);
 
-class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
-  void onResult(BLEAdvertisedDevice advertisedDevice) {
-    // Nothing here for now
-  }
-};
-
-class MyClientCallback : public BLEClientCallbacks {
-  void onConnect(BLEClient* pclient) {
+class MyClientCallback : public NimBLEClientCallbacks {
+  void onConnect(NimBLEClient* pclient) {
     Serial.println("onConnect");
   }
 
-  void onDisconnect(BLEClient* pclient) {
+  void onDisconnect(NimBLEClient* pclient) {
     Serial.println("onDisconnect");
   }
 };
+
+class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
+    void onResult(NimBLEAdvertisedDevice* advertisedDevice) {
+        if (advertisedDevice->isAdvertisingService(NimBLEUUID(SERVICE_UUID))) {
+            Serial.println("Found our service");
+
+            if (advertisedDevice->getName().compare("CornerNode1") == 0) {
+              Serial.println("Found CornerNode1");
+              pAdvertisedDevices[0] = advertisedDevice;
+            }    
+            else if (advertisedDevice->getName().compare("CornerNode2") == 0) {
+              Serial.println("Found CornerNode2");
+              pAdvertisedDevices[1] = advertisedDevice;
+            }
+            else if (advertisedDevice->getName().compare("CornerNode3") == 0) {
+              Serial.println("Found CornerNode3");
+              pAdvertisedDevices[2] = advertisedDevice;
+            }
+            else if (advertisedDevice->getName().compare("CornerNode4") == 0) {
+              Serial.println("Found CornerNode4");
+              pAdvertisedDevices[3] = advertisedDevice;
+            } 
+            else {
+              Serial.println("Did not find corner node");
+            }
+        }
+    };
+};
+
+static void nodeNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+  // Handle notification callback if needed
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi..");
+  }
+  Serial.println("Connected to WiFi");
+
+  M5.begin();
+  M5.Lcd.setRotation(3);
+  M5.Lcd.fillScreen(BLACK);
+  M5.Lcd.setCursor(0, 0, 2);
+  M5.Lcd.printf("Asset Node", 0);
+
+  NimBLEDevice::init("AssetNode");
+
+  NimBLEScan* pBLEScan = NimBLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
+  pBLEScan->setInterval(100);
+  pBLEScan->setWindow(99);
+  pBLEScan->setActiveScan(true);
+  pBLEScan->start(5, false);
+}
+
+bool connectToServer(NimBLEAdvertisedDevice* pDevice, int index) {
+  Serial.print("Connecting to "); Serial.println(pDevice->getName().c_str());
+
+  pClient = NimBLEDevice::createClient();
+  pClient->setClientCallbacks(new MyClientCallback());
+ 
+  unsigned long startTime = millis(); // Record the start time
+
+  // Attempt to connect to the server
+  while (!pClient->connect(pDevice)) {
+    // Check if timeout has occurred
+    if (millis() - startTime > 5000) {
+      Serial.println("Failed to connect, retrying...");
+      NimBLEDevice::deleteClient(pClient);
+      pClient = NimBLEDevice::createClient();
+      startTime = millis();
+    }
+  }
+  Serial.println(" - Connected to server");
+
+  cornerNodeRssiArr[index] = pClient->getRssi();
+ 
+  NimBLERemoteService* pRemoteService = pClient->getService(serviceUUID);
+  if (pRemoteService == nullptr) {
+    Serial.println("Failed to find our service UUID");
+    return false;
+  }
+  Serial.println(" - Found our service");
+
+  nodeCharacteristic = pRemoteService->getCharacteristic(nodeCharacteristicUUID);
+  if (nodeCharacteristic == nullptr) {
+    Serial.println("Failed to find our characteristic UUID");
+    return false;
+  }
+  Serial.println(" - Found our characteristics");
+  nodeCharacteristic->registerForNotify(nodeNotifyCallback);
+
+  NimBLEDevice::deleteClient(pClient);
+  return true;
+}
 
 double rssiToDistance(int rssi) {
   if (rssi == 0) {
@@ -115,72 +199,12 @@ void performTrilateration() {
   }
 }
 
-bool getNodeAddresses(BLEScan* pBLEScan) {
-  Serial.println("Searching for corner nodes...");
-
-  // Will keep scanning until all corner nodes found
-  while (cornerNodesDiscovered < MAX_NODES) {
-    BLEScanResults foundDevices = pBLEScan->start(5, false);
-
-    for (int i = 0; i < foundDevices.getCount(); i++) {
-      BLEAdvertisedDevice res = foundDevices.getDevice(i);
-      // Check if found device is our corner node
-      if (res.getName() == cornerNodes[cornerNodesDiscovered]) {
-        cornerNodeRssiArr[cornerNodesDiscovered] = res.getRSSI();
-        pServerAddresses[cornerNodesDiscovered] = new BLEAddress(res.getAddress());
-        cornerNodesDiscovered++;
-      }
-    }
-    pBLEScan->stop();
-    pBLEScan->clearResults();
-  }
-
-  cornerNodesDiscovered = 0;
-  Serial.println("Found all corner nodes!");
-  return true;
-}
-
-static void nodeNotifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-  // Handle notification callback if needed
-}
-
-void setup() {
-  Serial.begin(115200);
-
-  // Connect to Wi-Fi
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi..");
-  }
-  Serial.println("Connected to WiFi");
-
-  M5.begin();
-  M5.Lcd.setRotation(3);
-  M5.Lcd.fillScreen(BLACK);
-  M5.Lcd.setCursor(0, 0, 2);
-  M5.Lcd.printf("Asset Node", 0);
-
-  BLEDevice::init("");
-
-  BLEScan* pBLEScan = BLEDevice::getScan();
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-  pBLEScan->setInterval(100);
-  pBLEScan->setWindow(99);
-  pBLEScan->setActiveScan(true);
-
-  if (getNodeAddresses(pBLEScan)) {
-    doConnect = true;
-  }
-}
-
 void sendMessage() {
-  // Sample JSON data
   DynamicJsonDocument jsonDoc(200);
   jsonDoc["name"] = "AssetNode";
-  jsonDoc["xcoord"] = xAssetNode;
-  jsonDoc["ycoord"] = yAssetNode;
-  jsonDoc["zcoord"] = zAssetNode;
+  jsonDoc["xcoord"] = int(xAssetNode);
+  jsonDoc["ycoord"] = int(yAssetNode);
+  jsonDoc["zcoord"] = int(zAssetNode);
 
   // Convert JSON document to string
   String jsonString;
@@ -215,66 +239,27 @@ void printReadings() {
   }
 }
 
-bool connectToServer(BLEAddress pAddress, int index) {
-  Serial.print("Connecting to CornerNode"); Serial.println(index+1);
-
-  pClient = BLEDevice::createClient();
-  pClient->setClientCallbacks(new MyClientCallback());
- 
-  unsigned long startTime = millis(); // Record the start time
-
-  // Attempt to connect to the server
-  while (!pClient->connect(pAddress)) {
-    // Check if timeout has occurred
-    if (millis() - startTime > 5000) {
-      Serial.println("Failed to connect, retrying...");
-      pClient->disconnect();
-      delay(1000);
-      pClient = BLEDevice::createClient();
-      startTime = millis();
-    }
-  }
-  Serial.println(" - Connected to server");
-
-  cornerNodeRssiArr[index] = pClient->getRssi();
- 
-  BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
-  if (pRemoteService == nullptr) {
-    Serial.println("Failed to find our service UUID");
-    return false;
-  }
-  Serial.println(" - Found our service");
-
-  nodeCharacteristic = pRemoteService->getCharacteristic(nodeCharacteristicUUID);
-  if (nodeCharacteristic == nullptr) {
-    Serial.println("Failed to find our characteristic UUID");
-    return false;
-  }
-  Serial.println(" - Found our characteristics");
-  nodeCharacteristic->registerForNotify(nodeNotifyCallback);
-
-  pClient->disconnect();
-  delay(1000);
-  return true;
-}
-
 void loop() {
-  if (doConnect) {
-    // Connect to each corner node found
-    for (int i = 0; i < MAX_NODES; i++) {
-      if (!connectToServer(*pServerAddresses[i], i)) {
-        Serial.println("Failed to connect to the server; Restart device to scan for nearby BLE server again.");
-        pClient->disconnect();
-      }
-      delay(1000);
+  while (pAdvertisedDevices[0] == nullptr || pAdvertisedDevices[1] == nullptr || pAdvertisedDevices[2] == nullptr || pAdvertisedDevices[3] == nullptr) {
+    NimBLEDevice::getScan()->start(5, false);
+    Serial.println("Missing corner node(s)");
+    delay(1000);
+  }
+
+  Serial.println("Found all corner nodes");
+  NimBLEDevice::getScan()->stop();
+
+  for (int i = 0; i < MAX_NODES; i++) {
+    if (!connectToServer(pAdvertisedDevices[i], i)) {
+      Serial.println("Failed to connect to the server.");
+      NimBLEDevice::deleteClient(pClient);
+      i = i; // Retry connection
     }
-    doConnect = false;
   }
-  else {
-    performTrilateration();
-    sendMessage();
-    printReadings();
-    doConnect = true;
-  }
+
+  performTrilateration();
+  sendMessage();
+  printReadings();
+
   delay(1000);
 }

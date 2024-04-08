@@ -9,9 +9,9 @@
 #define MAX_NODES 4
 
 /* Put your SSID & Password */
-const char* ssid = "SINGTEL-F492";    // Change to your WiFi SSID
-const char* password = "caeceegabe";  // Change to your WiFi password
-const char* serverUrl = "http://192.168.1.79:3000/json_endpoint"; // Change to your WiFi's IPv4 address
+const char* ssid = "konek";    // Change to your WiFi SSID
+const char* password = "gayboy123";  // Change to your WiFi password
+const char* serverUrl = "http://192.168.156.248:3000/json_endpoint"; // Change to your WiFi's IPv4 address
 
 const uint8_t notificationOn[] = {0x1, 0x0};
 const uint8_t notificationOff[] = {0x0, 0x0};
@@ -24,9 +24,9 @@ static NimBLERemoteCharacteristic* nodeCharacteristic;
 static NimBLEClient* pClient;
 
 // Define the coordinates of the corner nodes
-double xCornerNode[] = {1.0, 6.0, 1.0, 1.0}; // Example x coordinates of corner nodes
-double yCornerNode[] = {1.0, 1.0, 6.0, 1.0}; // Example y coordinates of corner nodes
-double zCornerNode[] = {1.0, 1.0, 1.0, 6.0}; // Example z coordinates of corner nodes
+double xCornerNode[] = {0.0, 6.0, 0.0, 0.0}; // Example x coordinates of corner nodes
+double yCornerNode[] = {0.0, 0.0, 6.0, 0.0}; // Example y coordinates of corner nodes
+double zCornerNode[] = {0.0, 0.0, 0.0, 6.0}; // Example z coordinates of corner nodes
 
 int cornerNodeRssiArr[MAX_NODES]; // RSSI values from corner nodes
 double distancesCornerNodes[MAX_NODES]; // Distances from corner nodes to asset node
@@ -161,9 +161,13 @@ double rssiToDistance(int rssi) {
   }
   // Implement path loss model here
   // distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
-  double A = -50; // Example constant
-  double n = 2.0; // Example constant
-  return pow(10, (A - rssi) / (10 * n));
+  double A = -70; // RSSI from 1m from corner node
+  double n = 2; // Example constant
+  double dist = pow(10, (A - rssi) / (10 * n));
+
+  Serial.print("Distance for "); Serial.print(rssi); Serial.print(": "); Serial.println(dist);
+
+  return dist;
 }
 
 void performTrilateration() {

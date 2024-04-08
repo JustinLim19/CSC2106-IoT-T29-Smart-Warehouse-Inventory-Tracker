@@ -145,8 +145,7 @@
     camera.position.z = 30;
     let zoomLevel = 30;
     // Call updateInventory to fetch and render dynamically added items
-    updateInventory();
-    // Variables to track mouse movement and zooming
+    setInterval(updateInventory, 1000); // Call updateInventory every 1000 milliseconds (1 second)    // Variables to track mouse movement and zooming
     let isDragging = false;
     let previousMousePosition = { x: 0, y: 0 };
 

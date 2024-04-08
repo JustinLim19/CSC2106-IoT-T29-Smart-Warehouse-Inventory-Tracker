@@ -1,23 +1,26 @@
-#include <BLEDevice.h>
-#include <BLEServer.h>
+#include "NimBLEDevice.h"
+// #include <BLEDevice.h>
+// #include <BLEServer.h>
 #include <M5StickCPlus.h>
 
 #define SERVICE_UUID "01234567-0123-4567-89ab-0123456789ab"
+#define CHARACTERISTIC_UUID "01234567-0123-4567-89ab-0123456789cd"
+
 // When uploading to each device change accordingly
 // #define bleServerName "CornerNode1" 
-// #define bleServerName "CornerNode2" 
+#define bleServerName "CornerNode2" 
 // #define bleServerName "CornerNode3"
-#define bleServerName "CornerNode4"
+// #define bleServerName "CornerNode4"
 
-BLECharacteristic nodeCharacteristics("01234567-0123-4567-89ab-0123456789cd", BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
-BLEDescriptor nodeDescriptor(BLEUUID((uint16_t)0x2902));
+// NimBLECharacteristic nodeCharacteristics("01234567-0123-4567-89ab-0123456789cd", NIMBLE_PROPERTY::NOTIFY | NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE);
+// NimBLEDescriptor nodeDescriptor(NimBLEUUID((uint16_t)0x2902));
 
 unsigned long lastTime = 0;
 unsigned long timerDelay = 10000;
 bool deviceConnected = false;
 
-class MyServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer* pServer) {
+class MyServerCallbacks : public NimBLEServerCallbacks {
+  void onConnect(NimBLEServer* pServer) {
     deviceConnected = true;
 
     Serial.println("MyServerCallbacks::Connected...");
@@ -27,7 +30,7 @@ class MyServerCallbacks : public BLEServerCallbacks {
     M5.Lcd.println(bleServerName);
     M5.Lcd.println("Connected to a client!");
   };
-  void onDisconnect(BLEServer* pServer) {
+  void onDisconnect(NimBLEServer* pServer) {
     deviceConnected = false;
 
     Serial.println("MyServerCallbacks::Disconnected...");
@@ -48,33 +51,49 @@ void setup() {
   M5.Lcd.println(bleServerName);
   M5.Lcd.println("Waiting for client connection...");
 
-  BLEDevice::init(bleServerName);
-
-  BLEServer *pServer = BLEDevice::createServer();
+  NimBLEDevice::init(bleServerName);
+    
+  NimBLEServer *pServer = NimBLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
+  
+  NimBLEService *pService = pServer->createService(SERVICE_UUID);
+  NimBLECharacteristic *pCharacteristic = pService->createCharacteristic(CHARACTERISTIC_UUID);
 
-  BLEService *bleService = pServer->createService(SERVICE_UUID);
+  pService->start();
+  pCharacteristic->setValue("Hello BLE");
 
-  bleService->addCharacteristic(&nodeCharacteristics);
-  nodeCharacteristics.setValue("Node");
-  nodeCharacteristics.addDescriptor(&nodeDescriptor);
+  NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID); 
+  pAdvertising->start(); 
 
-  bleService->start();
+  // BLEDevice::init(bleServerName);
 
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pServer->getAdvertising()->start();
+  // BLEServer *pServer = BLEDevice::createServer();
+  // pServer->setCallbacks(new MyServerCallbacks());
+
+  // BLEService *bleService = pServer->createService(SERVICE_UUID);
+
+  // bleService->addCharacteristic(&nodeCharacteristics);
+  // nodeCharacteristics.setValue("Node");
+  // nodeCharacteristics.addDescriptor(&nodeDescriptor);
+
+  // bleService->start();
+
+  // BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  // pAdvertising->addServiceUUID(SERVICE_UUID);
+  // pServer->getAdvertising()->start();
   Serial.println("Waiting for client connection to notify...");
 }
 
 void loop() {
-  BLEDevice::startAdvertising();
-  if (deviceConnected) {
-    if ((millis() - lastTime) > timerDelay) {
-      nodeCharacteristics.setValue(bleServerName);
-      nodeCharacteristics.notify();
-      lastTime = millis();
-    }
-  }
+  // BLEDevice::startAdvertising();
+  NimBLEDevice::startAdvertising();
+  // if (deviceConnected) {
+  //   if ((millis() - lastTime) > timerDelay) {
+  //     nodeCharacteristics.setValue(bleServerName);
+  //     nodeCharacteristics.notify();
+  //     lastTime = millis();
+  //   }
+  // }
   delay(100);
 }

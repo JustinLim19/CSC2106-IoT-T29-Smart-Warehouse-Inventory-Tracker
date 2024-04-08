@@ -32,6 +32,7 @@ The system architecture, as depicted in Figure 1, illustrates the general layout
      #define bleServerName "CornerNode1"
      // #define bleServerName "CornerNode2"
      // #define bleServerName "CornerNode3"
+     // #define bleServerName "CornerNode4"
      ```
 3. Upload the modified `CornerNode.ino` to the respective M5StickC Plus device.
 

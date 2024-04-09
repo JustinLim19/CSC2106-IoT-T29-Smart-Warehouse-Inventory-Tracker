@@ -81,14 +81,17 @@
     document.body.appendChild(popup);
 
     // Create room
-    const roomGeometry = new THREE.BoxGeometry(20, 10, 15); // Width, Height, Depth
+    const roomGeometry = new THREE.BoxGeometry(25, 25, 25); // Width, Height, Depth
     const roomMaterial = new THREE.MeshBasicMaterial({ color: 0xCCCCCC, side: THREE.BackSide });
     const room = new THREE.Mesh(roomGeometry, roomMaterial);
     scene.add(room);
+    // room.position.set(10, 5, 7.5); // Half of the room's width, height, and depth
+    // scene.add(room);
 
     // Create grid
     const gridHelper = new THREE.GridHelper(40, 40, 0x888888, 0x888888); // size, divisions, color1, color2
-    gridHelper.position.set(0, -5, 0); // position at the bottom of the room
+    gridHelper.position.set(0, -15, 0); // position at the bottom of the room
+    //gridHelper.position.set(10, -5, 7.5); // Adjust so it's at the bottom of the room
     room.add(gridHelper);
 
     // Define an empty inventory array

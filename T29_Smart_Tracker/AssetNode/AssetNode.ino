@@ -9,9 +9,9 @@
 #define MAX_NODES 4
 
 /* Put your SSID & Password */
-const char* ssid = "konek";    // Change to your WiFi SSID
-const char* password = "gayboy123";  // Change to your WiFi password
-const char* serverUrl = "http://192.168.156.248:3000/json_endpoint"; // Change to your WiFi's IPv4 address
+const char* ssid = "BaconBanana";    // Change to your WiFi SSID
+const char* password = "Lemon_123";  // Change to your WiFi password
+const char* serverUrl = "http://192.168.255.28:3000/json_endpoint"; // Change to your WiFi's IPv4 address
 
 const uint8_t notificationOn[] = {0x1, 0x0};
 const uint8_t notificationOff[] = {0x0, 0x0};
@@ -24,9 +24,14 @@ static NimBLERemoteCharacteristic* nodeCharacteristic;
 static NimBLEClient* pClient;
 
 // Define the coordinates of the corner nodes
-double xCornerNode[] = {0.0, 6.0, 0.0, 0.0}; // Example x coordinates of corner nodes
-double yCornerNode[] = {0.0, 0.0, 6.0, 0.0}; // Example y coordinates of corner nodes
-double zCornerNode[] = {0.0, 0.0, 0.0, 6.0}; // Example z coordinates of corner nodes
+double xCornerNode[] = {0.0, 25.0, 0.0, 0.0}; // Example x coordinates of corner nodes
+double yCornerNode[] = {0.0, 0.0, 25.0, 0.0}; // Example y coordinates of corner nodes
+double zCornerNode[] = {0.0, 0.0, 0.0, 25.0}; // Example z coordinates of corner nodes
+
+// double xCornerNode[] = {0.0, 25.0, 0.0, 0.0, 0.0, 25.0}; // Add x coordinates for corner nodes 5 and 6
+// double yCornerNode[] = {0.0, 0.0, 25.0, 0.0, 25.0, 0.0}; // Add y coordinates for corner nodes 5 and 6
+// double zCornerNode[] = {0.0, 0.0, 0.0, 25.0, 25.0, 25.0}; // Add z coordinates for corner nodes 5 and 6
+
 
 int cornerNodeRssiArr[MAX_NODES]; // RSSI values from corner nodes
 double distancesCornerNodes[MAX_NODES]; // Distances from corner nodes to asset node
@@ -75,6 +80,14 @@ class AdvertisedDeviceCallbacks: public NimBLEAdvertisedDeviceCallbacks {
               Serial.println("Found CornerNode4");
               pAdvertisedDevices[3] = advertisedDevice;
             } 
+            // else if (advertisedDevice->getName().compare("CornerNode5") == 0) {
+            //   Serial.println("Found CornerNode5");
+            //   pAdvertisedDevices[4] = advertisedDevice;
+            // } 
+            // else if (advertisedDevice->getName().compare("CornerNode6") == 0) {
+            //   Serial.println("Found CornerNode6");
+            //   pAdvertisedDevices[5] = advertisedDevice;
+            // } 
             else {
               Serial.println("Did not find corner node");
             }
@@ -161,8 +174,8 @@ double rssiToDistance(int rssi) {
   }
   // Implement path loss model here
   // distance = 10^((RSSI - A) / (10 * n)), where A and n are constants
-  double A = -70; // RSSI from 1m from corner node
-  double n = 2; // Example constant
+  double A = -75; // RSSI from 1m from corner node
+  double n = 2.5; // Example constant
   double dist = pow(10, (A - rssi) / (10 * n));
 
   Serial.print("Distance for "); Serial.print(rssi); Serial.print(": "); Serial.println(dist);
@@ -171,44 +184,48 @@ double rssiToDistance(int rssi) {
 }
 
 void performTrilateration() {
-  double totalWeight = 0.0;
-  double weightedX = 0.0;
-  double weightedY = 0.0;
-  double weightedZ = 0.0;
+  double totalWeightXY = 0.0, totalWeightZ = 0.0; // Separate total weights for XY and Z
+  double weightedX = 0.0, weightedY = 0.0, weightedZ = 0.0;
   double distance = 0.0;
+  double zWeightFactor = 0.25; // Weight factor for Z coordinate (0 < zWeightFactor < 1), closer to 0 = reduce more weight
 
   // Calculate total weight and weighted sum of coordinates
   for (int i = 0; i < MAX_NODES; i++) {
-    // Avoid division by zero
-    if ((distance = rssiToDistance(cornerNodeRssiArr[i])) != 0) {
-      totalWeight += 1.0 / distance;
-      weightedX += (1.0 / distance) * xCornerNode[i];
-      weightedY += (1.0 / distance) * yCornerNode[i];
-      weightedZ += (1.0 / distance) * zCornerNode[i];
+    distance = rssiToDistance(cornerNodeRssiArr[i]);
+    if (distance > 0) { // Ensure distance is greater than zero to avoid division by zero
+      double weight = 1.0 / (distance * distance); // Use the inverse square of the distance as the weight
+      totalWeightXY += weight; // Accumulate weight for X and Y coordinates
+      totalWeightZ += weight * zWeightFactor; // Adjust Z weight by the weight factor
+      
+      // Apply weight normally for X and Y
+      weightedX += weight * xCornerNode[i];
+      weightedY += weight * yCornerNode[i];
+      
+      // Apply adjusted weight for Z
+      weightedZ += weight * zWeightFactor * zCornerNode[i]; // Adjust Z's contribution
     }
   }
 
-  // Calculate interpolated coordinates
-  if (totalWeight != 0) {
-    xAssetNode = weightedX / totalWeight;
-    yAssetNode = weightedY / totalWeight;
-    zAssetNode = weightedZ / totalWeight;
+  // Calculate interpolated coordinates, using separate total weights for Z
+  if (totalWeightXY != 0) { // Check to avoid division by zero
+    xAssetNode = weightedX / totalWeightXY;
+    yAssetNode = weightedY / totalWeightXY;
+    // Use adjusted total weight for Z
+    zAssetNode = weightedZ / totalWeightZ;
   } else {
     // Handle the case when all distances are zero (or near zero)
-    // Set asset node coordinates to an arbitrary value or handle it according to your application's requirements
-    xAssetNode = 0.0;
-    yAssetNode = 0.0;
-    zAssetNode = 0.0;
+    xAssetNode = yAssetNode = zAssetNode = 0.0;
     Serial.println("Error: All distances are zero (or near zero)");
   }
 }
+
 
 void sendMessage() {
   DynamicJsonDocument jsonDoc(200);
   jsonDoc["name"] = "AssetNode";
   jsonDoc["xcoord"] = int(xAssetNode);
-  jsonDoc["ycoord"] = int(yAssetNode);
-  jsonDoc["zcoord"] = int(zAssetNode);
+  jsonDoc["ycoord"] = int(zAssetNode);
+  jsonDoc["zcoord"] = int(yAssetNode);
 
   // Convert JSON document to string
   String jsonString;
@@ -239,6 +256,8 @@ void printReadings() {
     M5.Lcd.print(i + 1);
     M5.Lcd.print(" RSSI = ");
     M5.Lcd.print(cornerNodeRssiArr[i]);
+    M5.Lcd.print(" D: ");
+    M5.Lcd.print(rssiToDistance(cornerNodeRssiArr[i]));
     M5.Lcd.println();
   }
 }
